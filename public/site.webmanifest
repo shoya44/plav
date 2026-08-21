@@ -1,0 +1,30 @@
+{
+  "name": "Plav",
+  "short_name": "Plav",
+  "description": "Personal music and video player",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#060A10",
+  "theme_color": "#060A10",
+  "icons": [
+    {
+      "src": "/icons/plav-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/plav-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/plav-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

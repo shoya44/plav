@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="mark" x1="260" y1="240" x2="650" y2="770" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#22D3EE"/>
+      <stop offset="0.54" stop-color="#2F80FF"/>
+      <stop offset="1" stop-color="#635BFF"/>
+    </linearGradient>
+    <filter id="softGlow" x="-55%" y="-55%" width="210%" height="210%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="11"/>
+    </filter>
+  </defs>
+
+  <!-- Background intentionally omitted so the mark blends into the app header. -->
+  <g transform="translate(-64 0)">
+    <path d="M372 758V334C372 274 421 225 481 225H572 C687 225 780 318 780 433 C780 548 687 641 572 641H505V758"
+      stroke="url(#mark)" stroke-width="92" stroke-linecap="round" stroke-linejoin="round"
+      opacity="0.16" filter="url(#softGlow)"/>
+    <path d="M372 758V334C372 274 421 225 481 225H572 C687 225 780 318 780 433 C780 548 687 641 572 641H505V758"
+      stroke="url(#mark)" stroke-width="58" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M544 351 C544 333 564 322 579 332 L670 393 C688 405 688 431 670 443 L579 504 C564 514 544 503 544 485 V351Z"
+      fill="url(#mark)"/>
+    <path d="M393 334C393 286 432 247 481 247H572"
+      stroke="white" stroke-opacity="0.16" stroke-width="9" stroke-linecap="round"/>
+  </g>
+</svg>

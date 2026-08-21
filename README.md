@@ -165,6 +165,7 @@ plav/
 │  ├─ media.ts                # Media型 / tracks API / utility
 │  ├─ offline.ts              # Cache Storage / Auto save
 │  ├─ cloud.ts                # R2 usage API client
+│  ├─ cssVars.ts              # CSSカスタムプロパティ用の型ヘルパー
 │  ├─ main.tsx                # React entry point
 │  │
 │  ├─ ui/
@@ -178,7 +179,9 @@ plav/
 │  │
 │  ├─ hooks/
 │  │  ├─ useLongPress.ts      # 長押し判定（Library.tsx）
-│  │  └─ useSwipeToClose.ts   # 下スワイプで閉じる（VideoPlayer.tsx / Library.tsx）
+│  │  ├─ useSwipeToClose.ts   # 下スワイプで閉じる（VideoPlayer.tsx / Library.tsx）
+│  │  ├─ useQueueReorder.ts   # Up Nextの長押し+ドラッグ並び替え（PlaybackQueue.tsx）
+│  │  └─ useDraggableSheet.ts # Player Sheetのドラッグ/スナップ（PlayerSheet.tsx）
 │  │
 │  └─ styles/
 │     ├─ app.css              # App / Home / Library / Settings / Nav
@@ -352,8 +355,8 @@ Plavは既存のSupabase Project / R2 Bucketを利用します。
 | 長押し / Play next | `src/ui/Library.tsx`, `src/hooks/useLongPress.ts`, `src/audio.ts` |
 | Download表示 | `src/ui/Library.tsx`, `src/offline.ts`, `src/styles/app.css` |
 | Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
-| Player Sheet | `src/ui/PlayerSheet.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
-| Queue / 並び替え | `src/ui/PlaybackQueue.tsx`, `src/audio.ts`, `src/styles/player.css` |
+| Player Sheet | `src/ui/PlayerSheet.tsx`, `src/hooks/useDraggableSheet.ts`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
+| Queue / 並び替え | `src/ui/PlaybackQueue.tsx`, `src/hooks/useQueueReorder.ts`, `src/audio.ts`, `src/styles/player.css` |
 | Seek / Next / Previous / Repeat / Shuffle | `src/audio.ts`, `src/ui/SeekBar.tsx`, `src/ui/PlayerSheet.tsx` |
 | Settings | `src/ui/Settings.tsx`, `src/styles/app.css` |
 | Local Cache | `src/offline.ts` |

@@ -5,9 +5,9 @@ import {
   useRef,
   useState,
 } from "react"
-import type { CSSProperties } from "react"
 import { Check, Download, ListPlus, LoaderCircle } from "lucide-react"
 
+import { cssVars } from "../cssVars"
 import { useLongPress } from "../hooks/useLongPress"
 import { useSwipeToClose } from "../hooks/useSwipeToClose"
 import type { OfflineMediaController } from "../offline"
@@ -265,7 +265,7 @@ function DetailSheet({
           <span
             ref={titleTextRef}
             className={`detail-title${titleOverflow > 0 ? " scrolling" : ""}`}
-            style={{ "--title-overflow": `${titleOverflow}px` } as CSSProperties}
+            style={cssVars({ "--title-overflow": `${titleOverflow}px` })}
           >
             {getDisplayTitle(item.title)}
           </span>

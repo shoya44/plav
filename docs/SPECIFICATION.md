@@ -1025,6 +1025,7 @@ src/styles/player.css
 
 ```text
 src/ui/PlayerSheet.tsx
+src/hooks/useDraggableSheet.ts
 src/styles/player.css
 ```
 
@@ -1032,6 +1033,7 @@ src/styles/player.css
 
 ```text
 src/ui/PlaybackQueue.tsx
+src/hooks/useQueueReorder.ts
 src/audio.ts
 src/styles/player.css
 

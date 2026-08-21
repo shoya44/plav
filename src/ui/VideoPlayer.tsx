@@ -1,4 +1,3 @@
-import type { CSSProperties } from "react"
 import {
   Maximize,
   Pause,
@@ -7,6 +6,7 @@ import {
   RotateCw,
 } from "lucide-react"
 
+import { cssVars } from "../cssVars"
 import { useSwipeToClose } from "../hooks/useSwipeToClose"
 import type { VideoPlayerController } from "../video"
 import {
@@ -120,9 +120,7 @@ export function VideoPlayer({
               step="0.1"
               value={currentTime}
               aria-label="再生位置"
-              style={{
-                "--progress": progress,
-              } as CSSProperties}
+              style={cssVars({ "--progress": progress })}
               onChange={(event) =>
                 player.seekTo(
                   Number(

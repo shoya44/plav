@@ -11,8 +11,9 @@
 
 - **[対応済み]** 「1. プレイヤーとしてのパフォーマンス・UX改善」のうち (a)(b)(c)(d) を実装済み（`src/audio.ts` / `src/video.ts` / `src/offline.ts` / `src/App.tsx` / `src/ui/Library.tsx`）。詳細は各項目の `[対応済み]` 表記と本ファイル末尾の「Phase 1 実施結果」を参照。
 - **[対応済み]** Phase 3（重複解消・Hook切り出し）のうち、`SeekBar` 抽出・`useSwipeToClose` 抽出・`Library.tsx`への`useLongPress`適用・`offline.ts`のSet操作ヘルパー化を実装済み。詳細は「Phase 3 実施結果」を参照。
-- **[スコープ見直し]** `PlaybackQueue.tsx`への`useLongPress`適用は、想定より大きな構造変更が必要と判明したため保留（理由は「Phase 3 実施結果」参照）。
-- (e) の実機での `backdrop-filter` 負荷確認、および Phase 4 の残り項目（`useDraggableSheet`抽出、CSS型ヘルパー、`PlaybackQueue.tsx`の再検討）は未着手。
+- **[スコープ見直し]** `PlaybackQueue.tsx`への`useLongPress`適用は、想定より大きな構造変更が必要と判明したため保留（理由は「Phase 3 実施結果」参照）。ただし別アプローチとして、Phase 4で`useQueueReorder`フックへのロジック全体移動は完了。
+- **[対応済み]** Phase 4のうち、`PlaybackQueue.tsx`の`useQueueReorder`化、`PlayerSheet.tsx`の`useDraggableSheet`化、CSSカスタムプロパティ型ヘルパー（`cssVars`）導入を実装済み。詳細は「Phase 4 実施結果」を参照。
+- (e) の実機での `backdrop-filter` 負荷確認のみ、実機が必要なため未着手（後述）。
 
 ---
 
@@ -218,12 +219,12 @@ function useIdSet(initial: Set<string> = new Set()) {
   - [x] `useSwipeToClose` 抽出・`VideoPlayer.tsx` / `Library.tsx` へ適用（2, 4-c）
   - [x] `offline.ts` のSet操作ヘルパー化（4-d）
 
-- **Phase 4（任意・影響範囲が大きいもの）**
-  - `PlaybackQueue.tsx` を `QueueRow` サブコンポーネントへ分割した上で `useLongPress` を適用（Phase 3から再スコープ）
-  - `PlayerSheet.tsx` のドラッグロジックを `useDraggableSheet` に切り出し（2）
-  - CSSカスタムプロパティ用の型ヘルパー導入（3-b）
-  - `video.ts` のフォーマット統一（4-e） — Phase 1対応時に副次的に完了済み
-  - `backdrop-filter` の実機パフォーマンス確認（1-e）
+- **Phase 4（任意・影響範囲が大きいもの）** ✅ 完了（(1-e)を除く）
+  - [x] `PlaybackQueue.tsx` の長押し+ドラッグ並び替えロジック一式を `useQueueReorder` フックへ移動（`QueueRow`分割ではなく、コンポーネント丸ごとの状態をhook化する方式を採用。詳細は「Phase 4 実施結果」参照）
+  - [x] `PlayerSheet.tsx` のドラッグロジックを `useDraggableSheet` に切り出し（2）
+  - [x] CSSカスタムプロパティ用の型ヘルパー導入（3-b） — `src/cssVars.ts`
+  - [x] `video.ts` のフォーマット統一（4-e） — Phase 1対応時に副次的に完了済み
+  - [ ] `backdrop-filter` の実機パフォーマンス確認（1-e） — 実機が必要なため未着手
 
 各Phaseの完了後に `npm run typecheck` / `npm run lint` / `npm run build` を実行し、実機（iPhone12 Pro Safari / Chrome, PWA）でHome・Mini Player・Player Sheet・Queue並び替え・Video再生の一連の操作を確認する想定です。
 
@@ -274,8 +275,39 @@ function useIdSet(initial: Set<string> = new Set()) {
 
 ---
 
+## Phase 4 実施結果
+
+変更ファイル: `src/ui/PlaybackQueue.tsx`, `src/ui/PlayerSheet.tsx`, `src/ui/SeekBar.tsx`, `src/ui/Library.tsx`, `src/ui/VideoPlayer.tsx`
+新規ファイル: `src/hooks/useQueueReorder.ts`, `src/hooks/useDraggableSheet.ts`, `src/cssVars.ts`
+
+- **`useQueueReorder`**: `PlaybackQueue.tsx`にあった長押し+ドラッグ並び替えの状態管理・ポインターイベント処理（`pendingReorderRef` / `dragIndexRef` / `holdTimerRef` / `dragPreview`等、約170行）を丸ごと `src/hooks/useQueueReorder.ts` へ移動した。Phase 3で検討した「行ごとに`QueueRow`へ分割して`useLongPress`を再利用する」方式ではなく、**コンポーネント全体の状態を1つのカスタムフックへそのまま移す**方式を採用した。理由は、実際の並び替え判定（どの行の上にドラッグ中か）が`document.elementFromPoint`によるDOM走査に依存しており、本質的に「行単位」ではなく「リスト全体」の関心事だったため。これにより`PlaybackQueue.tsx`は367行から約120行になり、JSXとイベント配線だけが残った。挙動は完全に維持し、`player.moveUpNextItem`を呼び出す関数を`onReorder`として注入する形にした。
+- **`useDraggableSheet`**: `PlayerSheet.tsx`のボトムシートドラッグ（スナップ位置・速度判定・DOMへの直接描画によるドラッグ最適化など、約160行）を `src/hooks/useDraggableSheet.ts` へ抽出。`PlayerSheet.tsx`は`sheet`オブジェクト経由でrefと状態とハンドラをJSXへ配線するだけになった。
+- **`cssVars`**: `src/cssVars.ts`に、CSSカスタムプロパティ用の型ヘルパー`cssVars()`を追加。`SeekBar.tsx` / `Library.tsx`(DetailSheet) / `VideoPlayer.tsx`にそれぞれ個別に書かれていた`as CSSProperties`を1箇所に集約した（Phase 3でSeekBarを共通化した結果、重複自体は既に大幅に減っていたため、主な効果は「型キャストの集約」）。
+
+検証: 各ファイル編集後に`npx tsc --noEmit`を実行。`npm run build`成功。`npx oxlint src worker`の警告は21→39件に増加したが、追加分はすべて`react(refs)`カテゴリ（カスタムフックが返すref/stateをJSXの`ref=`やstyle計算に使う際にoxlintが誤検知するパターンで、Phase 1〜3でも同種の警告が既知の誤検知として許容されていたものと同一）であり、`exhaustive-deps`等の実害あるカテゴリは増えていない。
+
+`PlaybackQueue.tsx`（長押し+ドラッグ並び替え）と`PlayerSheet.tsx`（スナップ・ドラッグ）は、このリポジトリで最も繊細に調整されたジェスチャーだったため、Dev server + Playwright（iPhone 12 Pro相当ビューポート・タッチ有効、`/api/tracks`をモック）で個別に動作確認した。
+
+PlaybackQueue:
+- 220ms長押し後にドラッグ中状態（`.dragging`）が正しく1行だけ立つこと
+- ドラッグで実際に並び替え（`moveUpNextItem`相当）が発生すること
+- ドラッグ終了後に状態が正しくクリアされること
+- ドラッグと無関係な行への通常タップが正しく再生に反映されること（suppress状態が漏れていないこと）
+
+PlayerSheet:
+- 開いた直後は`snap-half`
+- 上へ強くドラッグ→`snap-expanded`
+- Expandedから下へ中程度ドラッグ→`snap-half`（閉じない）
+- Halfから下へ強くドラッグ→Sheetが閉じる
+- SeekBar上でのドラッグはSheet自体のドラッグ判定から除外されること（`input[type="range"]`除外ロジック）
+
+いずれも期待通りに動作し、コンソールエラーは発生しなかった。
+
+**未対応**: (1-e) `backdrop-filter`の実機負荷確認は、実機（iPhone12 Pro）でのGPU/コンポジタ負荷計測が前提のため、このサンドボックス環境では検証できない。コードへの推測での変更（例えばドラッグ中だけ`backdrop-filter`を外す等）は加えていない。実機確認後、必要であれば別途対応する。
+
+---
+
 ## 確認事項
 
-- 上記フェーズの実施順序・粒度でよいか
-- Phase 4 の `useDraggableSheet` 抽出のように影響範囲が大きい項目は、まず動作を変えないリファクタとして着手してよいか、それとも見送るか
-- `backdrop-filter` の実機計測（1-e）は実機を用意しての確認が必要なため、コード修正の一部として含めるか、別タスクとするか
+- Phase 1〜4のいずれも完了（(1-e)を除く）。今後は本ドキュメントに残る項目はない状態。追加のリファクタ候補が見つかった場合は都度この形式で追記する想定。
+- `backdrop-filter` の実機計測（1-e）は実機を用意しての確認が必要。実機で気になる挙動があれば、その内容とあわせて教えていただければ対応する。

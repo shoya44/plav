@@ -4,51 +4,77 @@
   min-height: 0;
 }
 
+.queue-history-row,
+.queue-current-row,
 .queue-row {
-  min-height: 44px;
-
-  border-bottom:
-    1px solid
-    rgba(
-      255,
-      255,
-      255,
-      0.025
-    );
-
-  transition:
-    background
-      var(--transition-fast),
-    opacity
-      var(--transition-fast);
+  min-height: 42px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.022);
 }
 
-.queue-row:last-child {
+.queue-history-row {
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  padding: 0 70px 0 2px;
+
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-history-row:active .queue-title.played {
+  color: var(--text-secondary);
+}
+
+.queue-current-row {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+  padding: 0 70px 0 2px;
+}
+
+.queue-current-row.has-history {
+  border-top: 1px solid rgba(82, 183, 255, 0.08);
+}
+
+.queue-current-dot {
+  flex: 0 0 auto;
+
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 10px rgba(82, 183, 255, 0.28);
+}
+
+.queue-row {
+  transition:
+    background var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.queue-row:last-of-type {
   border-bottom: 0;
 }
 
 .queue-row.dragging {
-  background:
-    rgba(
-      64,
-      156,
-      255,
-      0.075
-    );
-
+  background: rgba(64, 156, 255, 0.075);
   opacity: 0.76;
 }
 
 .queue-row-main {
   display: grid;
-
-  grid-template-columns:
-    minmax(0, 1fr)
-    auto;
-
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
 
-  min-height: 44px;
+  min-height: 42px;
 }
 
 .queue-title-button {
@@ -56,34 +82,22 @@
   align-items: center;
 
   min-width: 0;
-  height: 44px;
+  height: 42px;
 
-  padding:
-    0
-    6px
-    0
-    2px;
+  padding: 0 6px 0 2px;
 
   border: 0;
   background: transparent;
 
   text-align: left;
-
   cursor: pointer;
 }
 
 .queue-title {
   min-width: 0;
-
   overflow: hidden;
 
-  color:
-    rgba(
-      237,
-      242,
-      247,
-      0.82
-    );
+  color: rgba(237, 242, 247, 0.82);
 
   font-size: 13px;
   font-weight: 400;
@@ -93,10 +107,17 @@
   text-overflow: ellipsis;
 }
 
+.queue-title.played {
+  color: rgba(190, 201, 212, 0.34);
+}
+
+.queue-title.current {
+  color: var(--accent-pale);
+}
+
 .queue-row-actions {
   display: flex;
   align-items: center;
-
   gap: 1px;
 }
 
@@ -110,26 +131,21 @@
   height: 38px;
 
   padding: 0;
-
   border: 0;
   background: transparent;
 
-  color:
-    var(--player-muted);
-
+  color: var(--player-muted);
   cursor: pointer;
 }
 
 .queue-icon-button.active,
 .queue-icon-button:active,
 .queue-drag-handle:active {
-  color:
-    var(--accent-bright);
+  color: var(--accent-bright);
 }
 
 .queue-drag-handle {
   touch-action: none;
-
   cursor: grab;
 }
 
@@ -137,44 +153,21 @@
   cursor: grabbing;
 }
 
-/*
-  Play next はスクロール領域の外へ浮かせず、
-  行の中に展開する。
-  Queue上端でも切れず、実装もシンプル。
-*/
-
 .queue-inline-actions {
   display: flex;
   justify-content: flex-end;
 
-  padding:
-    0
-    36px
-    8px
-    8px;
+  padding: 0 36px 8px 8px;
 }
 
 .queue-play-next {
   min-height: 30px;
+  padding: 6px 11px;
 
-  padding:
-    6px
-    11px;
-
-  border:
-    1px solid
-    var(--border-accent);
-
+  border: 1px solid var(--border-accent);
   border-radius: 10px;
 
-  background:
-    rgba(
-      64,
-      156,
-      255,
-      0.07
-    );
-
+  background: rgba(64, 156, 255, 0.07);
   color: var(--text);
 
   font-size: 12px;
@@ -185,33 +178,19 @@
 }
 
 .queue-play-next:active {
-  background:
-    rgba(
-      64,
-      156,
-      255,
-      0.13
-    );
+  background: rgba(64, 156, 255, 0.13);
 }
 
-.queue-empty {
-  padding:
-    16px
-    2px
-    6px;
+.queue-end {
+  padding: 13px 2px 4px;
 
-  color:
-    var(--text-secondary);
-
-  font-size: 12px;
+  color: rgba(190, 201, 212, 0.34);
+  font-size: 11px;
   font-weight: 400;
   letter-spacing: 0.01em;
 }
 
-@media (
-  prefers-reduced-motion:
-  reduce
-) {
+@media (prefers-reduced-motion: reduce) {
   .queue-row {
     transition: none;
   }

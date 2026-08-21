@@ -1,4 +1,6 @@
-import { APP_VERSION } from "../appInfo"
+import {
+  APP_VERSION,
+} from "../appInfo"
 import "./SettingsView.css"
 
 export function SettingsView() {
@@ -8,7 +10,59 @@ export function SettingsView() {
         <h1 className="settings-title">
           Settings
         </h1>
+
+        <p className="settings-subtitle">
+          Plav preferences and app information
+        </p>
       </div>
+
+      <section className="settings-section">
+        <h2 className="settings-section-title">
+          Playback
+        </h2>
+
+        <div className="settings-group">
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Continuous playback
+            </span>
+
+            <span className="settings-row-value">
+              Enabled
+            </span>
+          </div>
+
+          <div className="settings-divider" />
+
+          <div className="settings-row">
+            <span className="settings-row-label">
+              History
+            </span>
+
+            <span className="settings-row-value">
+              Session only
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="settings-section-title">
+          Home
+        </h2>
+
+        <div className="settings-group">
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Default view
+            </span>
+
+            <span className="settings-row-value">
+              Audio
+            </span>
+          </div>
+        </div>
+      </section>
 
       <section className="settings-section">
         <h2 className="settings-section-title">
@@ -22,7 +76,7 @@ export function SettingsView() {
             </span>
 
             <span className="settings-row-value">
-              Local media player
+              Personal media player
             </span>
           </div>
 

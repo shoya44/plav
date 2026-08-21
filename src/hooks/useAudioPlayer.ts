@@ -23,64 +23,46 @@ export function useAudioPlayer(items: MediaItem[]) {
   const playableAudioItems = useMemo(
     () =>
       items.filter(
-        (item) =>
-          item.type === "audio" &&
-          Boolean(item.url)
+        (item) => item.type === "audio" && Boolean(item.url)
       ),
     [items]
   )
 
   /*
-    queue が「実際の再生順」です。
-    Library の並び順とは別に持つことで、
-    Shuffle / Play Next / Drag reorder を
-    すべて queue の編集として扱います。
+    Playback は3つだけで管理する。
+
+    history     = 実際に再生した曲
+    currentItem = 現在の曲
+    upNext      = これから再生する曲
+
+    Library の並び順とは分離しているため、
+    Shuffle / Play next / Drag reorder が分かりやすい。
   */
-  const [queue, setQueue] =
-    useState<MediaItem[]>(playableAudioItems)
+  const [history, setHistory] = useState<MediaItem[]>([])
+  const [currentItem, setCurrentItem] = useState<MediaItem | null>(null)
+  const [upNext, setUpNext] = useState<MediaItem[]>([])
 
-  const [currentIndex, setCurrentIndex] =
-    useState(-1)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
+  const [isRepeat, setIsRepeat] = useState(false)
 
-  const [isPlaying, setIsPlaying] =
-    useState(false)
+  const [volume, setVolume] = useState(1)
+  const [isMuted, setIsMuted] = useState(false)
+  const [canAdjustVolume, setCanAdjustVolume] = useState(false)
 
-  const [currentTime, setCurrentTime] =
-    useState(0)
-
-  const [duration, setDuration] =
-    useState(0)
-
-  const [isRepeat, setIsRepeat] =
-    useState(false)
-
-  const currentItem =
-    currentIndex >= 0
-      ? queue[currentIndex] ?? null
-      : null
-
-  const startAudioItem = async (
-    item: MediaItem,
-    nextIndex: number
-  ) => {
+  const startAudioItem = async (item: MediaItem) => {
     if (item.type !== "audio" || !item.url) {
-      console.log(
-        "再生できるURLがありません:",
-        item.title
-      )
+      console.log("再生できるURLがありません:", item.title)
       return
     }
 
     const audio = audioRef.current
     if (!audio) return
 
-    setCurrentIndex(nextIndex)
+    setCurrentItem(item)
 
-    const nextUrl =
-      new URL(
-        item.url,
-        window.location.href
-      ).href
+    const nextUrl = new URL(item.url, window.location.href).href
 
     if (audio.src !== nextUrl) {
       audio.src = item.url
@@ -91,51 +73,29 @@ export function useAudioPlayer(items: MediaItem[]) {
     try {
       await audio.play()
     } catch (error) {
-      console.error(
-        "音楽の再生に失敗しました:",
-        error
-      )
+      console.error("音楽の再生に失敗しました:", error)
     }
   }
 
-  // Home の Library から再生するときは Library 順で Queue を作り直す。
+  /*
+    HistoryはPlayback Session内だけ保持する。
+    - アプリを閉じる / Reloadする -> React stateなので自動的に初期化
+    - HomeのLibraryから曲をTap -> ここで明示的に初期化
+  */
   const playItem = async (item: MediaItem) => {
-    const nextQueue = [...playableAudioItems]
+    const startIndex = playableAudioItems.findIndex(
+      (audioItem) => audioItem.id === item.id
+    )
 
-    const nextIndex =
-      nextQueue.findIndex(
-        (queueItem) =>
-          queueItem.id === item.id
-      )
-
-    if (nextIndex === -1) {
-      console.log(
-        "再生Queueに存在しない曲です:",
-        item.title
-      )
+    if (startIndex === -1) {
+      console.log("再生可能なLibraryに存在しない曲です:", item.title)
       return
     }
 
-    setQueue(nextQueue)
+    setHistory([])
+    setUpNext(playableAudioItems.slice(startIndex + 1))
 
-    await startAudioItem(
-      nextQueue[nextIndex],
-      nextIndex
-    )
-  }
-
-  const playQueueIndex = async (
-    nextIndex: number
-  ) => {
-    const nextItem =
-      queue[nextIndex]
-
-    if (!nextItem) return
-
-    await startAudioItem(
-      nextItem,
-      nextIndex
-    )
+    await startAudioItem(playableAudioItems[startIndex])
   }
 
   const togglePlay = async () => {
@@ -146,10 +106,7 @@ export function useAudioPlayer(items: MediaItem[]) {
       try {
         await audio.play()
       } catch (error) {
-        console.error(
-          "音楽の再生に失敗しました:",
-          error
-        )
+        console.error("音楽の再生に失敗しました:", error)
       }
       return
     }
@@ -172,19 +129,29 @@ export function useAudioPlayer(items: MediaItem[]) {
   const playNext = async () => {
     if (!currentItem) return
 
-    const nextIndex =
-      currentIndex + 1
+    const nextItem = upNext[0]
 
-    if (queue[nextIndex]) {
-      await playQueueIndex(nextIndex)
+    if (nextItem) {
+      setHistory((currentHistory) => [
+        ...currentHistory,
+        currentItem,
+      ])
+      setUpNext((currentUpNext) => currentUpNext.slice(1))
+
+      await startAudioItem(nextItem)
       return
     }
 
-    if (
-      isRepeat &&
-      queue.length > 0
-    ) {
-      await playQueueIndex(0)
+    // Repeatは現在のPlayback Sessionを同じ順番でもう一度再生する。
+    if (isRepeat) {
+      const sessionItems = [...history, currentItem]
+      const firstItem = sessionItems[0]
+
+      if (firstItem) {
+        setHistory([])
+        setUpNext(sessionItems.slice(1))
+        await startAudioItem(firstItem)
+      }
       return
     }
 
@@ -197,209 +164,238 @@ export function useAudioPlayer(items: MediaItem[]) {
     const audio = audioRef.current
     if (!audio) return
 
+    // 一般的なPlayerと同様、3秒以上進んでいたら曲頭へ戻す。
     if (audio.currentTime > 3) {
       seekTo(0)
       return
     }
 
-    const previousIndex =
-      currentIndex - 1
+    const previousItem = history.at(-1)
 
-    if (queue[previousIndex]) {
-      await playQueueIndex(
-        previousIndex
-      )
+    if (!previousItem) {
+      seekTo(0)
       return
     }
 
-    seekTo(0)
+    setHistory((currentHistory) => currentHistory.slice(0, -1))
+    setUpNext((currentUpNext) => [currentItem, ...currentUpNext])
+
+    await startAudioItem(previousItem)
   }
 
-  // Home の Shuffle All: Queue 全体をランダム化して先頭から再生。
+  // 再生済みの曲をTapしたとき、その時点までPlaybackを巻き戻す。
+  const playHistoryItem = async (historyIndex: number) => {
+    if (!currentItem) return
+
+    const targetItem = history[historyIndex]
+    if (!targetItem) return
+
+    const itemsAfterTarget = history.slice(historyIndex + 1)
+
+    setHistory(history.slice(0, historyIndex))
+    setUpNext([
+      ...itemsAfterTarget,
+      currentItem,
+      ...upNext,
+    ])
+
+    await startAudioItem(targetItem)
+  }
+
+  // Up Nextの曲をTapすると、その曲を今すぐ再生する。
+  const playUpNextItem = async (itemId: MediaItem["id"]) => {
+    if (!currentItem) return
+
+    const targetIndex = upNext.findIndex((item) => item.id === itemId)
+    const targetItem = upNext[targetIndex]
+
+    if (!targetItem) return
+
+    setHistory((currentHistory) => [
+      ...currentHistory,
+      currentItem,
+    ])
+
+    setUpNext([
+      ...upNext.slice(0, targetIndex),
+      ...upNext.slice(targetIndex + 1),
+    ])
+
+    await startAudioItem(targetItem)
+  }
+
+  // HomeのShuffle AllはLibrary全体をランダム化し、先頭から再生する。
   const shuffleAll = async () => {
-    if (
-      playableAudioItems.length === 0
-    ) {
-      return
-    }
+    if (playableAudioItems.length === 0) return
 
-    const nextQueue =
-      shuffleItems(playableAudioItems)
+    const shuffledItems = shuffleItems(playableAudioItems)
+    const firstItem = shuffledItems[0]
 
-    setQueue(nextQueue)
+    if (!firstItem) return
 
-    await startAudioItem(
-      nextQueue[0],
-      0
-    )
+    setHistory([])
+    setUpNext(shuffledItems.slice(1))
+
+    await startAudioItem(firstItem)
   }
 
-  // Expanded Player の Shuffle: 現在曲までは固定し Up Next だけ並び替える。
+  // Player SheetのShuffleは、再生済みと現在曲を変えずUp Nextだけ並び替える。
   const shuffleUpcoming = () => {
-    if (
-      currentIndex < 0 ||
-      currentIndex >= queue.length - 1
-    ) {
-      return
-    }
-
-    setQueue((currentQueue) => {
-      const fixed =
-        currentQueue.slice(
-          0,
-          currentIndex + 1
-        )
-
-      const upcoming =
-        currentQueue.slice(
-          currentIndex + 1
-        )
-
-      return [
-        ...fixed,
-        ...shuffleItems(upcoming),
-      ]
-    })
+    setUpNext((currentUpNext) => shuffleItems(currentUpNext))
   }
 
-  // 選んだ曲を現在曲の直後へ移動する。
-  const moveItemToNext = (
-    itemId: MediaItem["id"]
-  ) => {
-    if (currentIndex < 0) return
-
-    setQueue((currentQueue) => {
-      const fromIndex =
-        currentQueue.findIndex(
-          (item) =>
-            item.id === itemId
-        )
-
-      if (
-        fromIndex <= currentIndex
-      ) {
-        return currentQueue
-      }
-
-      const targetIndex =
-        currentIndex + 1
-
-      if (
-        fromIndex === targetIndex
-      ) {
-        return currentQueue
-      }
-
-      const nextQueue =
-        [...currentQueue]
-
-      const [movedItem] =
-        nextQueue.splice(
-          fromIndex,
-          1
-        )
-
-      nextQueue.splice(
-        targetIndex,
-        0,
-        movedItem
+  const moveItemToNext = (itemId: MediaItem["id"]) => {
+    setUpNext((currentUpNext) => {
+      const fromIndex = currentUpNext.findIndex(
+        (item) => item.id === itemId
       )
 
-      return nextQueue
+      if (fromIndex <= 0) return currentUpNext
+
+      const nextUpNext = [...currentUpNext]
+      const [movedItem] = nextUpNext.splice(fromIndex, 1)
+
+      nextUpNext.unshift(movedItem)
+      return nextUpNext
     })
   }
 
-  // Drag reorder。現在曲より下（Up Next）だけを移動可能にする。
-  const moveQueueItem = (
-    fromIndex: number,
-    toIndex: number
-  ) => {
-    if (
-      fromIndex <= currentIndex ||
-      toIndex <= currentIndex ||
-      fromIndex === toIndex
-    ) {
-      return
-    }
+  // Drag reorderはUp Next内だけで完結する。
+  const moveUpNextItem = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex) return
 
-    setQueue((currentQueue) => {
+    setUpNext((currentUpNext) => {
       if (
         fromIndex < 0 ||
         toIndex < 0 ||
-        fromIndex >= currentQueue.length ||
-        toIndex >= currentQueue.length
+        fromIndex >= currentUpNext.length ||
+        toIndex >= currentUpNext.length
       ) {
-        return currentQueue
+        return currentUpNext
       }
 
-      const nextQueue =
-        [...currentQueue]
+      const nextUpNext = [...currentUpNext]
+      const [movedItem] = nextUpNext.splice(fromIndex, 1)
 
-      const [movedItem] =
-        nextQueue.splice(
-          fromIndex,
-          1
-        )
-
-      nextQueue.splice(
-        toIndex,
-        0,
-        movedItem
-      )
-
-      return nextQueue
+      nextUpNext.splice(toIndex, 0, movedItem)
+      return nextUpNext
     })
   }
 
-  const toggleRepeat = () =>
-    setIsRepeat(
-      (value) => !value
+  const detectVolumeSupport = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const originalVolume = audio.volume
+    const testVolume = originalVolume === 0.5 ? 0.35 : 0.5
+
+    try {
+      audio.volume = testVolume
+
+      const supported =
+        Math.abs(audio.volume - testVolume) < 0.01
+
+      audio.volume = originalVolume
+      setCanAdjustVolume(supported)
+    } catch {
+      setCanAdjustVolume(false)
+    }
+  }
+
+  const setVolumeLevel = (nextVolume: number) => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    const normalized = Math.min(
+      Math.max(nextVolume, 0),
+      1
     )
+
+    try {
+      audio.volume = normalized
+      setVolume(audio.volume)
+
+      if (normalized > 0 && audio.muted) {
+        audio.muted = false
+        setIsMuted(false)
+      }
+    } catch {
+      setCanAdjustVolume(false)
+    }
+  }
+
+  const toggleMute = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    audio.muted = !audio.muted
+    setIsMuted(audio.muted)
+  }
+
+  const handleLoadedMetadata = (seconds: number) => {
+    setDuration(seconds)
+
+    const audio = audioRef.current
+
+    if (audio) {
+      setVolume(audio.volume)
+      setIsMuted(audio.muted)
+    }
+
+    detectVolumeSupport()
+  }
+
+  const handleVolumeChange = () => {
+    const audio = audioRef.current
+    if (!audio) return
+
+    setVolume(audio.volume)
+    setIsMuted(audio.muted)
+  }
+
+  const toggleRepeat = () => {
+    setIsRepeat((value) => !value)
+  }
 
   return {
     audioRef,
 
-    queue,
-    currentIndex,
+    history,
     currentItem,
+    upNext,
     isPlaying,
     currentTime,
     duration,
     isRepeat,
 
+    volume,
+    isMuted,
+    canAdjustVolume,
+
     playItem,
-    playQueueIndex,
     togglePlay,
     pause,
     seekTo,
     playNext,
     playPrevious,
+    playHistoryItem,
+    playUpNextItem,
     shuffleAll,
     shuffleUpcoming,
     moveItemToNext,
-    moveQueueItem,
+    moveUpNextItem,
     toggleRepeat,
 
-    handlePlay: () =>
-      setIsPlaying(true),
+    setVolumeLevel,
+    toggleMute,
 
-    handlePause: () =>
-      setIsPlaying(false),
-
-    handleTimeUpdate: (
-      time: number
-    ) =>
-      setCurrentTime(time),
-
-    handleLoadedMetadata: (
-      seconds: number
-    ) =>
-      setDuration(seconds),
-
-    handleEnded: () =>
-      void playNext(),
+    handlePlay: () => setIsPlaying(true),
+    handlePause: () => setIsPlaying(false),
+    handleTimeUpdate: (time: number) => setCurrentTime(time),
+    handleLoadedMetadata,
+    handleVolumeChange,
+    handleEnded: () => void playNext(),
   }
 }
 
-export type AudioPlayerController =
-  ReturnType<typeof useAudioPlayer>
+export type AudioPlayerController = ReturnType<typeof useAudioPlayer>

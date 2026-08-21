@@ -4,6 +4,10 @@ import {
   Maximize,
   Pause,
   Play,
+  RotateCcw,
+  RotateCw,
+  Volume2,
+  VolumeX,
 } from "lucide-react"
 
 import type { VideoPlayerController } from "../hooks/useVideoPlayer"
@@ -28,6 +32,9 @@ export function VideoPlayer({
     currentTime,
     duration,
     isPlaying,
+    volume,
+    isMuted,
+    canAdjustVolume,
   } = player
 
   const isOpen =
@@ -59,7 +66,9 @@ export function VideoPlayer({
             event.touches[0].clientY
         }}
         onTouchEnd={(event) => {
-          if (touchStartYRef.current === null) {
+          if (
+            touchStartYRef.current === null
+          ) {
             return
           }
 
@@ -74,12 +83,16 @@ export function VideoPlayer({
           touchStartYRef.current = null
         }}
       >
-        <div className="sheet-handle video-player-handle" />
+        <div className="video-player-top">
+          <div className="sheet-handle video-player-handle" />
 
-        <div className="video-player-title">
-          {currentItem
-            ? getDisplayTitle(currentItem.title)
-            : ""}
+          <div className="video-player-title">
+            {currentItem
+              ? getDisplayTitle(
+                  currentItem.title
+                )
+              : ""}
+          </div>
         </div>
 
         <div className="video-frame">
@@ -105,21 +118,11 @@ export function VideoPlayer({
                 event.currentTarget.duration
               )
             }
+            onVolumeChange={
+              player.handleVolumeChange
+            }
             onEnded={player.handleEnded}
           />
-
-          {isOpen && !isPlaying && (
-            <button
-              className="video-center-play"
-              type="button"
-              aria-label="Play"
-              onClick={() =>
-                void player.togglePlay()
-              }
-            >
-              <Play size={30} strokeWidth={1.8} />
-            </button>
-          )}
 
           <button
             className="video-fullscreen-button"
@@ -129,50 +132,163 @@ export function VideoPlayer({
               void player.enterFullscreen()
             }
           >
-            <Maximize size={20} strokeWidth={1.8} />
+            <Maximize
+              size={22}
+              strokeWidth={1.8}
+            />
           </button>
         </div>
 
-        <div className="video-progress-area">
-          <input
-            className="video-progress"
-            type="range"
-            min="0"
-            max={duration || 0}
-            step="0.1"
-            value={currentTime}
-            aria-label="再生位置"
-            style={{
-              "--progress": progress,
-            } as CSSProperties}
-            onChange={(event) =>
-              player.seekTo(
-                Number(event.currentTarget.value)
-              )
-            }
-          />
+        <div className="video-lower">
+          <div className="video-progress-area">
+            <input
+              className="video-progress"
+              type="range"
+              min="0"
+              max={duration || 0}
+              step="0.1"
+              value={currentTime}
+              aria-label="再生位置"
+              style={{
+                "--progress": progress,
+              } as CSSProperties}
+              onChange={(event) =>
+                player.seekTo(
+                  Number(
+                    event.currentTarget.value
+                  )
+                )
+              }
+            />
 
-          <div className="video-time">
-            <span>{formatTime(currentTime)}</span>
-            <span>{formatTime(duration)}</span>
+            <div className="video-time">
+              <span>
+                {formatTime(currentTime)}
+              </span>
+
+              <span>
+                {formatTime(duration)}
+              </span>
+            </div>
           </div>
-        </div>
 
-        <div className="video-controls">
-          <button
-            className="video-control"
-            type="button"
-            aria-label={isPlaying ? "Pause" : "Play"}
-            onClick={() =>
-              void player.togglePlay()
-            }
-          >
-            {isPlaying ? (
-              <Pause size={23} strokeWidth={1.9} />
+          <div className="video-volume">
+            <button
+              className="video-volume-button"
+              type="button"
+              aria-label={
+                isMuted
+                  ? "ミュート解除"
+                  : "ミュート"
+              }
+              onClick={player.toggleMute}
+            >
+              {isMuted ? (
+                <VolumeX
+                  size={16}
+                  strokeWidth={1.8}
+                />
+              ) : (
+                <Volume2
+                  size={16}
+                  strokeWidth={1.8}
+                />
+              )}
+            </button>
+
+            {canAdjustVolume ? (
+              <>
+                <input
+                  className="video-volume-slider"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={
+                    isMuted
+                      ? 0
+                      : volume
+                  }
+                  aria-label="音量"
+                  onChange={(event) =>
+                    player.setVolumeLevel(
+                      Number(
+                        event.currentTarget.value
+                      )
+                    )
+                  }
+                />
+
+                <Volume2
+                  className="video-volume-end"
+                  size={15}
+                  strokeWidth={1.6}
+                  aria-hidden="true"
+                />
+              </>
             ) : (
-              <Play size={23} strokeWidth={1.9} />
+              <div className="video-volume-system">
+                Device volume
+              </div>
             )}
-          </button>
+          </div>
+
+          <div className="video-controls">
+            <button
+              className="video-skip-control"
+              type="button"
+              aria-label="10秒戻る"
+              onClick={() =>
+                player.skipBy(-10)
+              }
+            >
+              <RotateCcw
+                size={19}
+                strokeWidth={1.7}
+              />
+              <span>10</span>
+            </button>
+
+            <button
+              className="video-play-control"
+              type="button"
+              aria-label={
+                isPlaying
+                  ? "Pause"
+                  : "Play"
+              }
+              onClick={() =>
+                void player.togglePlay()
+              }
+            >
+              {isPlaying ? (
+                <Pause
+                  size={24}
+                  strokeWidth={1.9}
+                />
+              ) : (
+                <Play
+                  size={24}
+                  strokeWidth={1.9}
+                />
+              )}
+            </button>
+
+            <button
+              className="video-skip-control"
+              type="button"
+              aria-label="10秒進む"
+              onClick={() =>
+                player.skipBy(10)
+              }
+            >
+              <RotateCw
+                size={19}
+                strokeWidth={1.7}
+              />
+              <span>10</span>
+            </button>
+          </div>
         </div>
       </section>
     </>

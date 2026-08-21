@@ -15,7 +15,6 @@
   --accent-pale: #8ccdff;
 
   --surface-soft: rgba(255, 255, 255, 0.045);
-  --surface-control-subtle: rgba(255, 255, 255, 0.025);
 
   --border-soft: rgba(255, 255, 255, 0.035);
   --border-accent: rgba(82, 183, 255, 0.12);
@@ -31,8 +30,8 @@
   /* ---------- Layout ---------- */
   --header-height: 64px;
   --nav-height: 58px;
-  --mini-player-height: 64px;
-  --mini-player-slot-height: 72px;
+  --collapsed-player-height: 64px;
+  --collapsed-player-slot-height: 72px;
   --page-padding-x: 18px;
   --sheet-side: 10px;
   --sheet-bottom-gap: 6px;

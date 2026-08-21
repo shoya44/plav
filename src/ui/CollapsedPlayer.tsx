@@ -1,5 +1,5 @@
 import { useRef } from "react"
-import type { CSSProperties } from "react"
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
 import { Pause, Play, SkipForward } from "lucide-react"
 
 import type { AudioPlayerController } from "../audio"
@@ -10,12 +10,18 @@ type Props = {
   onOpen: () => void
 }
 
+type SwipeStart = {
+  pointerId: number
+  x: number
+  y: number
+}
+
 export function CollapsedPlayer({ player, onOpen }: Props) {
-  const touchStartYRef = useRef<number | null>(null)
+  const swipeStartRef = useRef<SwipeStart | null>(null)
 
   const {
     currentItem,
-    currentTime,
+    displayTime,
     duration,
     isPlaying,
   } = player
@@ -23,23 +29,61 @@ export function CollapsedPlayer({ player, onOpen }: Props) {
   if (!currentItem) return null
 
   const progress =
-    duration > 0 ? (currentTime / duration) * 100 : 0
+    duration > 0 ? (displayTime / duration) * 100 : 0
+
+  const handlePointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const target =
+      event.target instanceof Element ? event.target : null
+
+    // 再生ボタン / Next / Seekはそれぞれの操作を優先する。
+    if (
+      target?.closest(".collapsed-player-control") ||
+      target?.closest('input[type="range"]')
+    ) {
+      swipeStartRef.current = null
+      return
+    }
+
+    swipeStartRef.current = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+    }
+  }
+
+  const handlePointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    const start = swipeStartRef.current
+    if (!start || start.pointerId !== event.pointerId) return
+
+    const deltaX = event.clientX - start.x
+    const upward = start.y - event.clientY
+
+    // PointerUpを待たず、明確な上スワイプを検出した時点で開く。
+    if (upward >= 18 && upward > Math.abs(deltaX) * 1.1) {
+      swipeStartRef.current = null
+      onOpen()
+    }
+  }
+
+  const clearSwipe = () => {
+    swipeStartRef.current = null
+  }
+
+  const commitSeek = (value: string) => {
+    player.commitSeek(Number(value))
+  }
 
   return (
     <div
       className="collapsed-player"
-      onTouchStart={(event) => {
-        touchStartYRef.current = event.touches[0].clientY
-      }}
-      onTouchEnd={(event) => {
-        if (touchStartYRef.current === null) return
-
-        const distance =
-          touchStartYRef.current - event.changedTouches[0].clientY
-
-        if (distance > 36) onOpen()
-        touchStartYRef.current = null
-      }}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={clearSwipe}
+      onPointerCancel={clearSwipe}
     >
       <button
         className="collapsed-player-main"
@@ -82,11 +126,26 @@ export function CollapsedPlayer({ player, onOpen }: Props) {
         min="0"
         max={duration || 0}
         step="0.1"
-        value={currentTime}
+        value={displayTime}
         aria-label="再生位置"
         style={{ "--progress": progress } as CSSProperties}
-        onChange={(event) =>
-          player.seekTo(Number(event.currentTarget.value))
+        onInput={(event) =>
+          player.previewSeek(Number(event.currentTarget.value))
+        }
+        onPointerUp={(event) =>
+          commitSeek(event.currentTarget.value)
+        }
+        onPointerCancel={(event) =>
+          commitSeek(event.currentTarget.value)
+        }
+        onTouchEnd={(event) =>
+          commitSeek(event.currentTarget.value)
+        }
+        onKeyUp={(event) =>
+          commitSeek(event.currentTarget.value)
+        }
+        onBlur={(event) =>
+          commitSeek(event.currentTarget.value)
         }
       />
     </div>

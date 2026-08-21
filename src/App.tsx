@@ -67,6 +67,7 @@ export default function App() {
     <div className={`app-shell${showCollapsedPlayer ? " has-player" : ""}`}>
       <audio
         ref={audio.audioRef}
+        preload="metadata"
         onPlay={audio.handlePlay}
         onPause={audio.handlePause}
         onTimeUpdate={(event) =>

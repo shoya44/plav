@@ -31,11 +31,12 @@ type SnapHeights = {
   expanded: number
 }
 
-export function PlayerSheet({
-  player,
-  onClose,
-}: Props) {
+export function PlayerSheet({ player, onClose }: Props) {
   const sheetRef = useRef<HTMLElement | null>(null)
+  const backdropRef = useRef<HTMLDivElement | null>(null)
+  const snapHeightsRef = useRef<SnapHeights>({ half: 320, expanded: 620 })
+  const currentHeightRef = useRef(320)
+
   const activePointerIdRef = useRef<number | null>(null)
   const dragStartXRef = useRef(0)
   const dragStartYRef = useRef(0)
@@ -48,13 +49,12 @@ export function PlayerSheet({
   const startSnapRef = useRef<SheetSnap>("half")
 
   const [snap, setSnap] = useState<SheetSnap>("half")
-  const [sheetHeight, setSheetHeight] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
 
   const {
     currentItem,
-    currentTime,
+    displayTime,
     duration,
     isPlaying,
     isRepeat,
@@ -63,107 +63,77 @@ export function PlayerSheet({
     canAdjustVolume,
   } = player
 
-  const getSnapHeights = (): SnapHeights => {
-    const sheet = sheetRef.current
+  const measureSnapHeights = (): SnapHeights => {
     const viewportHeight =
       window.visualViewport?.height ?? window.innerHeight
 
-    let expandedHeight = Math.max(
-      360,
-      viewportHeight - 96,
+    // Navigation + safe-area分を残しつつ、Expandedは画面上端近くまで使う。
+    const expanded = Math.max(360, viewportHeight - 96)
+    const half = Math.min(
+      Math.max(300, viewportHeight * 0.5),
+      Math.max(240, expanded - 72),
     )
 
-    if (sheet) {
-      const maxHeight = Number.parseFloat(
-        window.getComputedStyle(sheet).maxHeight,
-      )
+    return { half, expanded }
+  }
 
-      if (Number.isFinite(maxHeight) && maxHeight > 0) {
-        expandedHeight = maxHeight
-      }
+  const setVisualHeight = (height: number) => {
+    currentHeightRef.current = height
+    sheetRef.current?.style.setProperty(
+      "--player-sheet-height",
+      `${height}px`,
+    )
+
+    const { half, expanded } = snapHeightsRef.current
+    const span = Math.max(expanded - half, 1)
+    const ratio = Math.min(Math.max((height - half) / span, 0), 1)
+
+    if (backdropRef.current) {
+      backdropRef.current.style.opacity = String(0.58 + ratio * 0.16)
     }
+  }
 
-    const preferredHalfHeight = Math.max(
-      300,
-      viewportHeight * 0.5,
-    )
-
-    const halfHeight = Math.min(
-      preferredHalfHeight,
-      Math.max(220, expandedHeight - 72),
-    )
-
-    return {
-      half: halfHeight,
-      expanded: expandedHeight,
-    }
+  const snapTo = (nextSnap: SheetSnap) => {
+    setSnap(nextSnap)
+    setVisualHeight(snapHeightsRef.current[nextSnap])
   }
 
   useLayoutEffect(() => {
-    if (!currentItem) {
-      return
+    if (!currentItem) return
+
+    const syncSize = () => {
+      if (closingRef.current || dragStartedRef.current) return
+
+      snapHeightsRef.current = measureSnapHeights()
+      setVisualHeight(snapHeightsRef.current[snap])
     }
 
-    const syncHeight = () => {
-      if (closingRef.current || isDragging) {
-        return
-      }
-
-      const heights = getSnapHeights()
-      setSheetHeight(heights[snap])
-    }
-
-    syncHeight()
-
-    window.addEventListener("resize", syncHeight)
-    window.visualViewport?.addEventListener(
-      "resize",
-      syncHeight,
-    )
+    syncSize()
+    window.addEventListener("resize", syncSize)
+    window.visualViewport?.addEventListener("resize", syncSize)
 
     return () => {
-      window.removeEventListener("resize", syncHeight)
-      window.visualViewport?.removeEventListener(
-        "resize",
-        syncHeight,
-      )
+      window.removeEventListener("resize", syncSize)
+      window.visualViewport?.removeEventListener("resize", syncSize)
     }
-  }, [currentItem?.id, snap, isDragging])
+  }, [currentItem?.id, snap])
 
-  if (!currentItem) {
-    return null
-  }
+  if (!currentItem) return null
 
   const progress =
-    duration > 0
-      ? (currentTime / duration) * 100
-      : 0
-
-  const snapTo = (nextSnap: SheetSnap) => {
-    const heights = getSnapHeights()
-
-    setSnap(nextSnap)
-    setSheetHeight(heights[nextSnap])
-  }
+    duration > 0 ? (displayTime / duration) * 100 : 0
 
   const closeWithAnimation = () => {
-    if (closingRef.current) {
-      return
-    }
+    if (closingRef.current) return
 
     closingRef.current = true
     setIsDragging(false)
     setIsClosing(true)
 
     const reduceMotion =
-      window.matchMedia?.(
-        "(prefers-reduced-motion: reduce)",
-      ).matches ?? false
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
 
-    window.setTimeout(
-      onClose,
-      reduceMotion ? 0 : 200,
-    )
+    window.setTimeout(onClose, reduceMotion ? 0 : 180)
   }
 
   const resetPointerTracking = () => {
@@ -185,53 +155,37 @@ export function PlayerSheet({
     }
 
     const target =
-      event.target instanceof Element
-        ? event.target
-        : null
+      event.target instanceof Element ? event.target : null
 
-    // Seek / Volumeは横操作を最優先する。
-    if (target?.closest('input[type="range"]')) {
-      return
-    }
+    // Seek / VolumeはSheet gestureから完全に除外する。
+    if (target?.closest('input[type="range"]')) return
 
     activePointerIdRef.current = event.pointerId
     dragStartXRef.current = event.clientX
     dragStartYRef.current = event.clientY
-    dragStartHeightRef.current = sheetHeight
+    dragStartHeightRef.current = currentHeightRef.current
     dragStartTimeRef.current = performance.now()
     dragStartedRef.current = false
     startSnapRef.current = snap
     dragOriginQueueRef.current =
-      (target?.closest(
-        ".player-sheet-queue-scroll",
-      ) as HTMLElement | null) ?? null
+      (target?.closest(".player-sheet-queue-scroll") as HTMLElement | null) ?? null
   }
 
   const handlePointerMove = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
-    if (activePointerIdRef.current !== event.pointerId) {
-      return
-    }
+    if (activePointerIdRef.current !== event.pointerId) return
 
-    const deltaX =
-      event.clientX - dragStartXRef.current
-    const deltaY =
-      event.clientY - dragStartYRef.current
+    const deltaX = event.clientX - dragStartXRef.current
+    const deltaY = event.clientY - dragStartYRef.current
 
     if (!dragStartedRef.current) {
-      const verticalDistance = Math.abs(deltaY)
-      const horizontalDistance = Math.abs(deltaX)
+      const vertical = Math.abs(deltaY)
+      const horizontal = Math.abs(deltaX)
 
-      if (verticalDistance < 8) {
-        return
-      }
+      if (vertical < 6) return
 
-      // 横方向の操作はSheetが奪わない。
-      if (
-        horizontalDistance >
-        verticalDistance * 0.85
-      ) {
+      if (horizontal > vertical * 0.95) {
         resetPointerTracking()
         return
       }
@@ -239,14 +193,7 @@ export function PlayerSheet({
       const queue = dragOriginQueueRef.current
 
       if (queue && startSnapRef.current === "expanded") {
-        // Expanded中の上スワイプはQueueスクロールへ譲る。
-        if (deltaY < 0) {
-          resetPointerTracking()
-          return
-        }
-
-        // Queueが途中なら、下スワイプもQueueを先に戻す。
-        if (queue.scrollTop > 0) {
+        if (deltaY < 0 || queue.scrollTop > 0) {
           resetPointerTracking()
           return
         }
@@ -255,64 +202,38 @@ export function PlayerSheet({
       dragStartedRef.current = true
       suppressClickRef.current = true
       setIsDragging(true)
-
-      event.currentTarget.setPointerCapture(
-        event.pointerId,
-      )
+      event.currentTarget.setPointerCapture(event.pointerId)
     }
 
-    if (event.cancelable) {
-      event.preventDefault()
-    }
+    if (event.cancelable) event.preventDefault()
 
-    const heights = getSnapHeights()
-    const minimumDragHeight = Math.min(
-      220,
-      heights.half * 0.65,
-    )
+    const heights = snapHeightsRef.current
+    const nextHeight = dragStartHeightRef.current - deltaY
+    const minimum = Math.min(220, heights.half * 0.65)
 
-    // 指を上へ動かすほどSheetが大きくなる。
-    const nextHeight =
-      dragStartHeightRef.current - deltaY
-
-    setSheetHeight(
-      Math.min(
-        Math.max(nextHeight, minimumDragHeight),
-        heights.expanded,
-      ),
+    // React stateを毎frame更新せず、DOMのCSS変数だけ変更する。
+    // Queue全体の再renderを避けるため、iPhoneでのdragが軽くなる。
+    setVisualHeight(
+      Math.min(Math.max(nextHeight, minimum), heights.expanded),
     )
   }
 
   const finishPointerDrag = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
-    if (activePointerIdRef.current !== event.pointerId) {
-      return
-    }
+    if (activePointerIdRef.current !== event.pointerId) return
 
     if (!dragStartedRef.current) {
       resetPointerTracking()
       return
     }
 
-    const deltaY =
-      event.clientY - dragStartYRef.current
-
-    const elapsed = Math.max(
-      performance.now() - dragStartTimeRef.current,
-      1,
-    )
-
+    const deltaY = event.clientY - dragStartYRef.current
+    const elapsed = Math.max(performance.now() - dragStartTimeRef.current, 1)
     const velocityY = deltaY / elapsed
 
-    if (
-      event.currentTarget.hasPointerCapture(
-        event.pointerId,
-      )
-    ) {
-      event.currentTarget.releasePointerCapture(
-        event.pointerId,
-      )
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
     }
 
     const startSnap = startSnapRef.current
@@ -320,30 +241,22 @@ export function PlayerSheet({
 
     if (startSnap === "half") {
       const shouldExpand =
-        deltaY <= -72 ||
-        (deltaY <= -24 && velocityY <= -0.5)
+        deltaY <= -46 ||
+        (deltaY <= -16 && velocityY <= -0.34)
 
       const shouldClose =
-        deltaY >= 88 ||
-        (deltaY >= 28 && velocityY >= 0.58)
+        deltaY >= 78 ||
+        (deltaY >= 24 && velocityY >= 0.5)
 
-      if (shouldExpand) {
-        snapTo("expanded")
-      } else if (shouldClose) {
-        closeWithAnimation()
-      } else {
-        snapTo("half")
-      }
+      if (shouldExpand) snapTo("expanded")
+      else if (shouldClose) closeWithAnimation()
+      else snapTo("half")
     } else {
       const shouldCollapse =
-        deltaY >= 76 ||
-        (deltaY >= 24 && velocityY >= 0.52)
+        deltaY >= 58 ||
+        (deltaY >= 18 && velocityY >= 0.4)
 
-      if (shouldCollapse) {
-        snapTo("half")
-      } else {
-        snapTo("expanded")
-      }
+      snapTo(shouldCollapse ? "half" : "expanded")
     }
 
     window.setTimeout(() => {
@@ -354,12 +267,9 @@ export function PlayerSheet({
   const cancelPointerDrag = (
     event: ReactPointerEvent<HTMLElement>,
   ) => {
-    if (activePointerIdRef.current !== event.pointerId) {
-      return
-    }
+    if (activePointerIdRef.current !== event.pointerId) return
 
     const startSnap = startSnapRef.current
-
     resetPointerTracking()
     snapTo(startSnap)
     suppressClickRef.current = false
@@ -368,35 +278,24 @@ export function PlayerSheet({
   const handleClickCapture = (
     event: ReactMouseEvent<HTMLElement>,
   ) => {
-    if (!suppressClickRef.current) {
-      return
-    }
+    if (!suppressClickRef.current) return
 
     suppressClickRef.current = false
     event.preventDefault()
     event.stopPropagation()
   }
 
-  const heights = getSnapHeights()
-  const backdropOpacity = Math.min(
-    1,
-    Math.max(
-      0.35,
-      sheetHeight / Math.max(heights.half, 1),
-    ),
-  )
-
-  const sheetStyle = {
-    "--player-sheet-height": `${sheetHeight}px`,
-  } as CSSProperties
+  const commitSeek = (value: string) => {
+    player.commitSeek(Number(value))
+  }
 
   return (
     <>
       <div
+        ref={backdropRef}
         className={`sheet-backdrop player-backdrop${
           isDragging ? " is-dragging" : ""
         }${isClosing ? " is-closing" : ""}`}
-        style={{ opacity: backdropOpacity }}
         onClick={closeWithAnimation}
       />
 
@@ -405,7 +304,6 @@ export function PlayerSheet({
         className={`bottom-sheet player-sheet snap-${snap}${
           isDragging ? " is-dragging" : ""
         }${isClosing ? " is-closing" : ""}`}
-        style={sheetStyle}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={finishPointerDrag}
@@ -416,20 +314,12 @@ export function PlayerSheet({
           className="player-sheet-drag-area"
           role="button"
           tabIndex={0}
-          aria-label={
-            snap === "half"
-              ? "プレイヤーを拡大"
-              : "プレイヤーを縮小"
-          }
+          aria-label={snap === "half" ? "プレイヤーを拡大" : "プレイヤーを縮小"}
           aria-expanded={snap === "expanded"}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault()
-              snapTo(
-                snap === "half"
-                  ? "expanded"
-                  : "half",
-              )
+              snapTo(snap === "half" ? "expanded" : "half")
             }
           }}
         >
@@ -441,10 +331,7 @@ export function PlayerSheet({
         </div>
 
         <div className="player-sheet-queue">
-          <div className="player-sheet-section-title">
-            PLAYBACK
-          </div>
-
+          <div className="player-sheet-section-title">PLAYBACK</div>
           <div className="player-sheet-queue-scroll">
             <PlaybackQueue player={player} />
           </div>
@@ -458,20 +345,31 @@ export function PlayerSheet({
               min="0"
               max={duration || 0}
               step="0.1"
-              value={currentTime}
+              value={displayTime}
               aria-label="再生位置"
-              style={{
-                "--progress": progress,
-              } as CSSProperties}
-              onChange={(event) =>
-                player.seekTo(
-                  Number(event.currentTarget.value),
-                )
+              style={{ "--progress": progress } as CSSProperties}
+              onInput={(event) =>
+                player.previewSeek(Number(event.currentTarget.value))
+              }
+              onPointerUp={(event) =>
+                commitSeek(event.currentTarget.value)
+              }
+              onPointerCancel={(event) =>
+                commitSeek(event.currentTarget.value)
+              }
+              onTouchEnd={(event) =>
+                commitSeek(event.currentTarget.value)
+              }
+              onKeyUp={(event) =>
+                commitSeek(event.currentTarget.value)
+              }
+              onBlur={(event) =>
+                commitSeek(event.currentTarget.value)
               }
             />
 
             <div className="player-sheet-time">
-              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(displayTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
           </div>
@@ -480,11 +378,7 @@ export function PlayerSheet({
             <button
               className="player-sheet-volume-button"
               type="button"
-              aria-label={
-                isMuted
-                  ? "ミュート解除"
-                  : "ミュート"
-              }
+              aria-label={isMuted ? "ミュート解除" : "ミュート"}
               onClick={player.toggleMute}
             >
               {isMuted ? (
@@ -504,13 +398,10 @@ export function PlayerSheet({
                   step="0.05"
                   value={isMuted ? 0 : volume}
                   aria-label="音量"
-                  onChange={(event) =>
-                    player.setVolumeLevel(
-                      Number(event.currentTarget.value),
-                    )
+                  onInput={(event) =>
+                    player.setVolumeLevel(Number(event.currentTarget.value))
                   }
                 />
-
                 <Volume2
                   className="player-sheet-volume-end"
                   size={17}
@@ -520,7 +411,7 @@ export function PlayerSheet({
               </>
             ) : (
               <div className="player-sheet-volume-system">
-                Device volume
+                iPhoneの音量ボタンで調整
               </div>
             )}
           </div>
@@ -540,9 +431,7 @@ export function PlayerSheet({
                 className="player-sheet-control"
                 type="button"
                 aria-label="Previous"
-                onClick={() =>
-                  void player.playPrevious()
-                }
+                onClick={() => void player.playPrevious()}
               >
                 <SkipBack size={26} strokeWidth={1.8} />
               </button>
@@ -551,9 +440,7 @@ export function PlayerSheet({
                 className="player-sheet-control main"
                 type="button"
                 aria-label={isPlaying ? "Pause" : "Play"}
-                onClick={() =>
-                  void player.togglePlay()
-                }
+                onClick={() => void player.togglePlay()}
               >
                 {isPlaying ? (
                   <Pause size={31} strokeWidth={1.8} />
@@ -566,18 +453,14 @@ export function PlayerSheet({
                 className="player-sheet-control"
                 type="button"
                 aria-label="Next"
-                onClick={() =>
-                  void player.playNext()
-                }
+                onClick={() => void player.playNext()}
               >
                 <SkipForward size={26} strokeWidth={1.8} />
               </button>
             </div>
 
             <button
-              className={`player-sheet-secondary-control${
-                isRepeat ? " active" : ""
-              }`}
+              className={`player-sheet-secondary-control${isRepeat ? " active" : ""}`}
               type="button"
               aria-label="Repeat"
               onClick={player.toggleRepeat}

@@ -24,6 +24,15 @@ function hasMediaSession() {
   )
 }
 
+function isIOSFamily() {
+  if (typeof navigator === "undefined") return false
+
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+  )
+}
+
 export function useAudioPlayer(items: MediaItem[]) {
   const audioRef = useRef<HTMLAudioElement>(null)
 
@@ -42,6 +51,7 @@ export function useAudioPlayer(items: MediaItem[]) {
 
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
+  const [seekPreviewTime, setSeekPreviewTime] = useState<number | null>(null)
   const [duration, setDuration] = useState(0)
   const [isRepeat, setIsRepeat] = useState(false)
 
@@ -142,13 +152,39 @@ export function useAudioPlayer(items: MediaItem[]) {
     audioRef.current?.pause()
   }
 
-  const seekTo = (time: number) => {
+  const normalizeSeekTime = (time: number) => {
+    if (!Number.isFinite(time)) return 0
+
+    const max = duration > 0 ? duration : Number.POSITIVE_INFINITY
+    return Math.min(Math.max(time, 0), max)
+  }
+
+  // Rangeをドラッグ中は表示だけ動かし、R2への実Seekは指を離した時に1回だけ行う。
+  // iPhoneでドラッグ中に大量のRange requestを発生させないため。
+  const previewSeek = (time: number) => {
+    setSeekPreviewTime(normalizeSeekTime(time))
+  }
+
+  const commitSeek = (time?: number) => {
     const audio = audioRef.current
     if (!audio) return
 
-    audio.currentTime = time
-    setCurrentTime(time)
+    const target = normalizeSeekTime(
+      time ?? seekPreviewTime ?? audio.currentTime,
+    )
+
+    audio.currentTime = target
+    setCurrentTime(target)
+    setSeekPreviewTime(null)
     updateMediaSessionPosition()
+  }
+
+  const cancelSeek = () => {
+    setSeekPreviewTime(null)
+  }
+
+  const seekTo = (time: number) => {
+    commitSeek(time)
   }
 
   const playNext = async () => {
@@ -317,6 +353,13 @@ export function useAudioPlayer(items: MediaItem[]) {
   const detectVolumeSupport = () => {
     const audio = audioRef.current
     if (!audio) return
+
+    // iOS Safari / PWAではHTMLMediaElement.volumeが見かけ上変更できても
+    // 実際の端末音量へ反映されないため、アプリ内Volume UIを出さない。
+    if (isIOSFamily()) {
+      setCanAdjustVolume(false)
+      return
+    }
 
     const originalVolume = audio.volume
     const testVolume = originalVolume === 0.5 ? 0.35 : 0.5
@@ -489,9 +532,14 @@ export function useAudioPlayer(items: MediaItem[]) {
   }
 
   const handleTimeUpdate = (time: number) => {
-    setCurrentTime(time)
+    // ドラッグ中はRangeのつまみをaudio timeupdateで引き戻さない。
+    if (seekPreviewTime === null) {
+      setCurrentTime(time)
+    }
     updateMediaSessionPosition()
   }
+
+  const displayTime = seekPreviewTime ?? currentTime
 
   return {
     audioRef,
@@ -501,6 +549,7 @@ export function useAudioPlayer(items: MediaItem[]) {
     upNext,
     isPlaying,
     currentTime,
+    displayTime,
     duration,
     isRepeat,
 
@@ -512,6 +561,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     togglePlay,
     pause,
     seekTo,
+    previewSeek,
+    commitSeek,
+    cancelSeek,
     playNext,
     playPrevious,
     playPreviousTrack,

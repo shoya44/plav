@@ -1,0 +1,43 @@
+フォルダー パスの一覧:  ボリューム Windows
+ボリューム シリアル番号は 0000008C 9E2E:3A36 です
+C:.
+│  .gitignore
+│  tree.txt
+│  
+├─public
+│  └─media
+│          .gitkeep
+│          
+└─src
+    │  App.css
+    │  App.tsx
+    │  appInfo.ts
+    │  index.css
+    │  main.tsx
+    │  media.ts
+    │  
+    ├─components
+    │      DetailSheet.css
+    │      DetailSheet.tsx
+    │      ExpandedPlayer.css
+    │      ExpandedPlayer.tsx
+    │      MediaRow.css
+    │      MediaRow.tsx
+    │      MiniPlayer.css
+    │      MiniPlayer.tsx
+    │      PlaybackQueue.css
+    │      PlaybackQueue.tsx
+    │      SettingsView.css
+    │      SettingsView.tsx
+    │      VideoPlayer.css
+    │      VideoPlayer.tsx
+    │      
+    ├─hooks
+    │      useAudioPlayer.ts
+    │      useVideoPlayer.ts
+    │      
+    └─styles
+            base.css
+            sheets.css
+            tokens.css
+            

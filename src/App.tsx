@@ -1,136 +1,86 @@
 import { useEffect, useState } from "react"
-import {
-  House,
-  Music2,
-  Settings,
-  Shuffle,
-  Video,
-} from "lucide-react"
+import { House, Music2, Settings, Shuffle, Video } from "lucide-react"
 
-import { fetchTracks } from "./api"
-import { CollapsedPlayer } from "./components/CollapsedPlayer"
-import { DetailSheet } from "./components/DetailSheet"
-import { MediaRow } from "./components/MediaRow"
-import { PlayerSheet } from "./components/PlayerSheet"
-import { SettingsView } from "./components/SettingsView"
-import { VideoPlayer } from "./components/VideoPlayer"
-import { useAudioPlayer } from "./hooks/useAudioPlayer"
-import { useVideoPlayer } from "./hooks/useVideoPlayer"
-import {
-  type MediaItem,
-  type MediaType,
-} from "./media"
-import "./App.css"
+import { useAudioPlayer } from "./audio"
+import { fetchTracks, type MediaItem, type MediaType } from "./media"
+import { useVideoPlayer } from "./video"
+import { CollapsedPlayer } from "./ui/CollapsedPlayer"
+import { Library } from "./ui/Library"
+import { PlayerSheet } from "./ui/PlayerSheet"
+import { Settings as SettingsView } from "./ui/Settings"
+import { VideoPlayer } from "./ui/VideoPlayer"
 
 type Page = "home" | "settings"
 
-function App() {
+export default function App() {
   const [page, setPage] = useState<Page>("home")
   const [mediaType, setMediaType] = useState<MediaType>("audio")
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
-  const [detailItem, setDetailItem] = useState<MediaItem | null>(null)
 
-  const audioPlayer = useAudioPlayer(mediaItems)
-  const videoPlayer = useVideoPlayer()
+  const audio = useAudioPlayer(mediaItems)
+  const video = useVideoPlayer()
 
   useEffect(() => {
     let cancelled = false
 
-    const loadTracks = async () => {
-      try {
-        const tracks = await fetchTracks()
-
-        if (cancelled) return
-
-        const items: MediaItem[] = tracks.map((track) => ({
-          id: track.id,
-          title: track.title,
-          type: "audio",
-          url: track.mediaUrl,
-          durationSeconds: track.durationSeconds,
-        }))
-
-        setMediaItems(items)
-      } catch (error) {
-        console.error(
-          "曲一覧の取得に失敗しました:",
-          error,
-        )
-      }
-    }
-
-    void loadTracks()
+    fetchTracks()
+      .then((items) => {
+        if (!cancelled) setMediaItems(items)
+      })
+      .catch((error) => {
+        console.error("曲一覧の取得に失敗しました:", error)
+      })
 
     return () => {
       cancelled = true
     }
   }, [])
 
-  const filteredItems = mediaItems.filter(
-    (item) => item.type === mediaType
-  )
-
-  const showCollapsedPlayer =
-    Boolean(audioPlayer.currentItem) && !videoPlayer.currentItem
-
+  const filteredItems = mediaItems.filter((item) => item.type === mediaType)
+  const showCollapsedPlayer = Boolean(audio.currentItem) && !video.currentItem
   const showShuffle =
     page === "home" &&
     mediaType === "audio" &&
     !isPlayerOpen &&
-    !videoPlayer.currentItem
+    !video.currentItem
 
   const openPage = (nextPage: Page) => {
-    setDetailItem(null)
     setIsPlayerOpen(false)
-
-    if (videoPlayer.currentItem) {
-      videoPlayer.close()
-    }
-
+    video.close()
     setPage(nextPage)
   }
 
   const playMedia = async (item: MediaItem) => {
-    setDetailItem(null)
-
     if (item.type === "audio") {
-      if (videoPlayer.currentItem) {
-        videoPlayer.close()
-      }
-
-      await audioPlayer.playItem(item)
+      video.close()
+      await audio.playItem(item)
       return
     }
 
-    if (item.url) {
-      audioPlayer.pause()
-      setIsPlayerOpen(false)
-    }
-
-    await videoPlayer.playItem(item)
+    audio.pause()
+    setIsPlayerOpen(false)
+    await video.playItem(item)
   }
 
   return (
     <div className={`app-shell${showCollapsedPlayer ? " has-player" : ""}`}>
       <audio
-        ref={audioPlayer.audioRef}
-        onPlay={audioPlayer.handlePlay}
-        onPause={audioPlayer.handlePause}
+        ref={audio.audioRef}
+        onPlay={audio.handlePlay}
+        onPause={audio.handlePause}
         onTimeUpdate={(event) =>
-          audioPlayer.handleTimeUpdate(event.currentTarget.currentTime)
+          audio.handleTimeUpdate(event.currentTarget.currentTime)
         }
         onLoadedMetadata={(event) =>
-          audioPlayer.handleLoadedMetadata(event.currentTarget.duration)
+          audio.handleLoadedMetadata(event.currentTarget.duration)
         }
-        onVolumeChange={audioPlayer.handleVolumeChange}
-        onEnded={audioPlayer.handleEnded}
+        onVolumeChange={audio.handleVolumeChange}
+        onEnded={audio.handleEnded}
       />
 
       <header className="app-header">
-        <div className="app-logo" aria-label="Plav">
-          P
-        </div>
+        <div className="app-logo" aria-label="Plav" />
       </header>
 
       {page === "home" ? (
@@ -138,6 +88,7 @@ function App() {
           <div className="media-switcher" aria-label="Media type">
             <button
               className={`switch-button${mediaType === "audio" ? " active" : ""}`}
+              type="button"
               aria-label="Audio"
               onClick={() => setMediaType("audio")}
             >
@@ -146,6 +97,7 @@ function App() {
 
             <button
               className={`switch-button${mediaType === "video" ? " active" : ""}`}
+              type="button"
               aria-label="Video"
               onClick={() => setMediaType("video")}
             >
@@ -153,21 +105,12 @@ function App() {
             </button>
           </div>
 
-          <div className="media-list">
-            {filteredItems.map((item) => (
-              <MediaRow
-                key={item.id}
-                item={item}
-                isPlaying={
-                  item.type === "audio"
-                    ? audioPlayer.currentItem?.id === item.id
-                    : videoPlayer.currentItem?.id === item.id
-                }
-                onPlay={() => void playMedia(item)}
-                onShowDetail={() => setDetailItem(item)}
-              />
-            ))}
-          </div>
+          <Library
+            items={filteredItems}
+            currentAudioId={audio.currentItem?.id}
+            currentVideoId={video.currentItem?.id}
+            onPlay={(item) => void playMedia(item)}
+          />
         </main>
       ) : (
         <SettingsView />
@@ -176,9 +119,9 @@ function App() {
       {showShuffle && (
         <button
           className="shuffle-button"
-          aria-label="Shuffle all"
           type="button"
-          onClick={() => void audioPlayer.shuffleAll()}
+          aria-label="Shuffle all"
+          onClick={() => void audio.shuffleAll()}
         >
           <Shuffle size={22} strokeWidth={1.9} />
         </button>
@@ -186,34 +129,25 @@ function App() {
 
       {showCollapsedPlayer && (
         <CollapsedPlayer
-          player={audioPlayer}
+          player={audio}
           onOpen={() => setIsPlayerOpen(true)}
         />
       )}
 
-      {audioPlayer.currentItem &&
-        isPlayerOpen &&
-        !videoPlayer.currentItem && (
-          <PlayerSheet
-            player={audioPlayer}
-            onClose={() => setIsPlayerOpen(false)}
-          />
-        )}
-
-      <VideoPlayer player={videoPlayer} />
-
-      {detailItem && (
-        <DetailSheet
-          item={detailItem}
-          onClose={() => setDetailItem(null)}
+      {audio.currentItem && isPlayerOpen && !video.currentItem && (
+        <PlayerSheet
+          player={audio}
+          onClose={() => setIsPlayerOpen(false)}
         />
       )}
+
+      <VideoPlayer player={video} />
 
       <nav className="bottom-nav">
         <button
           className={`nav-button${page === "home" ? " active" : ""}`}
-          aria-label="Home"
           type="button"
+          aria-label="Home"
           onClick={() => openPage("home")}
         >
           <House size={22} strokeWidth={1.8} />
@@ -221,8 +155,8 @@ function App() {
 
         <button
           className={`nav-button${page === "settings" ? " active" : ""}`}
-          aria-label="Settings"
           type="button"
+          aria-label="Settings"
           onClick={() => openPage("settings")}
         >
           <Settings size={22} strokeWidth={1.8} />
@@ -231,5 +165,3 @@ function App() {
     </div>
   )
 }
-
-export default App

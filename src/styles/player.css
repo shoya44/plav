@@ -1,0 +1,1286 @@
+/* ===== Shared sheets ===== */
+/* Bottom Sheetで共通利用する土台 */
+
+.sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: var(--overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.bottom-sheet {
+  position: fixed;
+  left: var(--sheet-side);
+  right: var(--sheet-side);
+  bottom: calc(
+    var(--nav-height)
+    + env(safe-area-inset-bottom)
+    + var(--sheet-bottom-gap)
+  );
+
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-sheet);
+  box-shadow:
+    0 -4px 40px rgba(0, 0, 0, 0.36),
+    inset 0 1px 0 var(--border-soft);
+
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+}
+
+.sheet-handle {
+  height: 4px;
+  margin-left: auto;
+  margin-right: auto;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.20);
+}
+
+
+/* ===== Collapsed audio player ===== */
+/* ---------- Collapsed Player ---------- */
+
+.collapsed-player {
+  position: relative;
+
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+
+  height: var(--collapsed-player-height);
+  margin: 4px 12px;
+  overflow: hidden;
+
+  border: 1px solid var(--border-accent);
+  border-radius: var(--radius-player);
+
+  background: linear-gradient(
+    105deg,
+    rgba(25, 43, 66, 0.96) 0%,
+    rgba(17, 31, 49, 0.96) 46%,
+    rgba(10, 20, 33, 0.98) 100%
+  );
+
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 var(--border-soft);
+
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.collapsed-player::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+
+  width: 120px;
+
+  background: radial-gradient(
+    circle at left center,
+    rgba(64, 156, 255, 0.075),
+    transparent 72%
+  );
+
+  pointer-events: none;
+}
+
+.collapsed-player-main {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+  height: 100%;
+
+  padding: 0 10px 2px 18px;
+
+  border: 0;
+  background: transparent;
+
+  text-align: left;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.collapsed-player-main::before {
+  content: "";
+
+  flex: 0 0 auto;
+  width: 3px;
+  height: 20px;
+  margin-right: 10px;
+
+  border-radius: 999px;
+  background: rgba(82, 183, 255, 0.72);
+
+  box-shadow: 0 0 12px rgba(82, 183, 255, 0.16);
+}
+
+.collapsed-player-title {
+  min-width: 0;
+  overflow: hidden;
+
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.collapsed-player-actions {
+  position: relative;
+
+  display: flex;
+  align-items: center;
+
+  gap: 0;
+  padding-right: 5px;
+
+  z-index: 1;
+}
+
+/*
+  見た目はミニマルなまま、実際のタップ領域は44px以上にする。
+*/
+.collapsed-player-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 46px;
+  height: 48px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: transparent;
+  color: var(--player-muted);
+  cursor: pointer;
+
+  transition:
+    background var(--transition-ui),
+    color var(--transition-ui),
+    transform var(--transition-fast);
+}
+
+.collapsed-player-control.main {
+  color: var(--text-strong);
+}
+
+.collapsed-player-control:active {
+  transform: scale(0.92);
+  background: rgba(64, 156, 255, 0.08);
+  color: var(--accent-bright);
+}
+
+.collapsed-player-progress {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: -8px;
+
+  width: calc(100% - 20px);
+  height: 26px;
+  margin: 0;
+  padding: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-x;
+  z-index: 2;
+}
+
+.collapsed-player-progress::-webkit-slider-runnable-track {
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+
+  background: linear-gradient(
+    to right,
+    var(--accent-bright) 0%,
+    var(--accent-bright) calc(var(--progress, 0) * 1%),
+    var(--track-soft) calc(var(--progress, 0) * 1%),
+    var(--track-soft) 100%
+  );
+}
+
+.collapsed-player-progress::-webkit-slider-thumb {
+  width: 12px;
+  height: 12px;
+  margin-top: -4.5px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent-bright);
+
+  box-shadow: 0 0 8px rgba(82, 183, 255, 0.35);
+
+  opacity: 0;
+  transition: opacity var(--transition-ui);
+}
+
+.collapsed-player-progress:active::-webkit-slider-thumb {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .collapsed-player-control,
+  .collapsed-player-progress::-webkit-slider-thumb {
+    transition: none;
+  }
+}
+
+
+/* ===== Playback queue ===== */
+/* ---------- Playback Queue ---------- */
+
+.queue-list {
+  min-height: 0;
+}
+
+.queue-history-row,
+.queue-current-row,
+.queue-row {
+  min-height: 48px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.022);
+}
+
+.queue-history-row {
+  display: flex;
+  align-items: center;
+
+  width: 100%;
+  padding: 0 84px 0 2px;
+
+  border-top: 0;
+  border-left: 0;
+  border-right: 0;
+  background: transparent;
+
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-history-row:active .queue-title.played {
+  color: var(--text-secondary);
+}
+
+.queue-current-row {
+  display: flex;
+  align-items: center;
+
+  gap: 9px;
+  padding: 0 84px 0 2px;
+}
+
+.queue-current-row.has-history {
+  border-top: 1px solid rgba(82, 183, 255, 0.08);
+}
+
+.queue-current-dot {
+  flex: 0 0 auto;
+
+  width: 5px;
+  height: 5px;
+
+  border-radius: 50%;
+  background: var(--accent-bright);
+  box-shadow: 0 0 10px rgba(82, 183, 255, 0.28);
+}
+
+.queue-row {
+  transition:
+    background var(--transition-fast),
+    opacity var(--transition-fast);
+}
+
+.queue-row:last-of-type {
+  border-bottom: 0;
+}
+
+.queue-row.dragging {
+  background: rgba(64, 156, 255, 0.075);
+  opacity: 0.76;
+}
+
+.queue-row-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+
+  min-height: 48px;
+}
+
+.queue-title-button {
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+  height: 48px;
+
+  padding: 0 8px 0 2px;
+
+  border: 0;
+  background: transparent;
+
+  text-align: left;
+  cursor: pointer;
+}
+
+.queue-title {
+  min-width: 0;
+  overflow: hidden;
+
+  color: rgba(237, 242, 247, 0.82);
+
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.queue-title.played {
+  color: rgba(190, 201, 212, 0.34);
+}
+
+.queue-title.current {
+  color: var(--accent-pale);
+}
+
+.queue-row-actions {
+  display: flex;
+  align-items: center;
+  gap: 0;
+}
+
+.queue-icon-button,
+.queue-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 44px;
+  height: 44px;
+
+  padding: 0;
+  border: 0;
+  background: transparent;
+
+  color: var(--player-muted);
+  cursor: pointer;
+}
+
+.queue-icon-button.active,
+.queue-icon-button:active,
+.queue-drag-handle:active {
+  color: var(--accent-bright);
+}
+
+.queue-drag-handle {
+  touch-action: none;
+  cursor: grab;
+}
+
+.queue-drag-handle:active {
+  cursor: grabbing;
+}
+
+.queue-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+
+  padding: 0 44px 8px 8px;
+}
+
+.queue-play-next {
+  min-height: 38px;
+  padding: 8px 13px;
+
+  border: 1px solid var(--border-accent);
+  border-radius: 11px;
+
+  background: rgba(64, 156, 255, 0.07);
+  color: var(--text);
+
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  cursor: pointer;
+}
+
+.queue-play-next:active {
+  background: rgba(64, 156, 255, 0.13);
+}
+
+.queue-end {
+  padding: 13px 2px 4px;
+
+  color: rgba(190, 201, 212, 0.34);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .queue-row {
+    transition: none;
+  }
+}
+
+
+/* ===== Audio player sheet ===== */
+/* ---------- Player Sheet ---------- */
+
+.player-backdrop {
+  /* Bottom NavigationはPlayer Sheetとは別レイヤー。 */
+  bottom: calc(
+    var(--nav-height)
+    + env(safe-area-inset-bottom)
+  );
+
+  z-index: 30;
+  transition: opacity 200ms ease;
+}
+
+.player-sheet {
+  display: flex;
+  flex-direction: column;
+
+  width: auto;
+  height: var(--player-sheet-height, 50dvh);
+  min-height: 0;
+
+  max-height: calc(
+    100dvh
+    - var(--nav-height)
+    - env(safe-area-inset-bottom)
+    - var(--sheet-bottom-gap)
+    - env(safe-area-inset-top)
+    - 10px
+  );
+
+  overflow: hidden;
+  overscroll-behavior: contain;
+
+  padding: 6px 16px 10px;
+
+  background: linear-gradient(
+    145deg,
+    rgba(25, 44, 68, 0.985),
+    rgba(10, 20, 33, 0.995) 58%,
+    rgba(6, 13, 22, 1)
+  );
+
+  transform: translate3d(0, 0, 0);
+
+  transition:
+    height 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+
+  will-change: height, transform;
+  z-index: 40;
+}
+
+.player-sheet.is-dragging {
+  transition: none;
+  cursor: grabbing;
+}
+
+.player-sheet.is-closing {
+  transform: translate3d(0, calc(100% + 36px), 0);
+  pointer-events: none;
+}
+
+.player-backdrop.is-dragging {
+  transition: none;
+}
+
+.player-backdrop.is-closing {
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+/* ---------- Drag Area ---------- */
+
+.player-sheet-drag-area {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  height: 32px;
+  margin: -2px -8px 0;
+
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.player-sheet.is-dragging .player-sheet-drag-area {
+  cursor: grabbing;
+}
+
+.player-handle {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 5px;
+  margin: 0;
+}
+
+/*
+  Sheet全体でPointer Eventsを受ける。
+  Seek / VolumeはTS側で除外し、横操作を優先する。
+*/
+.player-sheet-title,
+.player-sheet-section-title,
+.player-sheet-lower {
+  touch-action: none;
+}
+
+/*
+  Half中は上スワイプをSheet拡大へ使う。
+  Expanded後はQueueの通常スクロールを有効にする。
+*/
+.player-sheet.snap-half .player-sheet-queue-scroll {
+  overflow-y: hidden;
+  touch-action: none;
+}
+
+.player-sheet.snap-expanded .player-sheet-queue-scroll {
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+/* ---------- Title ---------- */
+
+.player-sheet-title {
+  flex: 0 0 auto;
+
+  width: 100%;
+  min-height: 22px;
+  overflow: hidden;
+
+  color: var(--text-strong);
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  line-height: 22px;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Playback History / Queue ---------- */
+
+.player-sheet-queue {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  margin-top: 8px;
+}
+
+.player-sheet-section-title {
+  flex: 0 0 auto;
+  padding: 0 2px 5px;
+
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.11em;
+}
+
+.player-sheet-queue-scroll {
+  min-height: 0;
+  flex: 1 1 auto;
+
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+
+.player-sheet-queue-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+/* ---------- Lower Controls ---------- */
+
+.player-sheet-lower {
+  flex: 0 0 auto;
+  padding-top: 8px;
+
+  border-top:
+    1px solid
+    rgba(255, 255, 255, 0.04);
+}
+
+/* ---------- Seek ---------- */
+
+.player-sheet-progress-area {
+  width: 100%;
+}
+
+.player-sheet-progress {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+.player-sheet-progress::-webkit-slider-runnable-track {
+  height: 5px;
+  border-radius: 999px;
+
+  background: linear-gradient(
+    to right,
+    var(--accent-bright) 0%,
+    var(--accent-bright)
+      calc(var(--progress, 0) * 1%),
+    var(--track)
+      calc(var(--progress, 0) * 1%),
+    var(--track) 100%
+  );
+}
+
+.player-sheet-progress::-webkit-slider-thumb {
+  width: 16px;
+  height: 16px;
+  margin-top: -5.5px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 50%;
+  background: var(--accent-bright);
+
+  box-shadow:
+    0 0 12px rgba(82, 183, 255, 0.30);
+
+  transition:
+    transform var(--transition-fast),
+    box-shadow var(--transition-fast);
+}
+
+.player-sheet-progress:active::-webkit-slider-thumb {
+  transform: scale(1.14);
+}
+
+.player-sheet-time {
+  display: flex;
+  justify-content: space-between;
+
+  margin-top: -3px;
+
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Volume ---------- */
+
+.player-sheet-volume {
+  display: grid;
+  grid-template-columns:
+    44px
+    minmax(0, 1fr)
+    32px;
+
+  align-items: center;
+  width: 100%;
+  gap: 5px;
+  margin-top: 1px;
+}
+
+.player-sheet-volume-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 44px;
+  height: 44px;
+  padding: 0;
+
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--player-muted);
+  cursor: pointer;
+}
+
+.player-sheet-volume-button:active {
+  background: rgba(64, 156, 255, 0.07);
+  color: var(--accent-bright);
+}
+
+.player-sheet-volume-slider {
+  width: 100%;
+  height: 28px;
+  margin: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+  background: transparent;
+  cursor: pointer;
+  touch-action: pan-x;
+}
+
+.player-sheet-volume-slider::-webkit-slider-runnable-track {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--track);
+}
+
+.player-sheet-volume-slider::-webkit-slider-thumb {
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 50%;
+  background: rgba(235, 241, 247, 0.94);
+}
+
+.player-sheet-volume-end {
+  justify-self: center;
+  color: var(--player-muted);
+}
+
+.player-sheet-volume-system {
+  grid-column: 2 / 4;
+
+  color: var(--text-secondary);
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+/* ---------- Bottom Controls ---------- */
+
+.player-sheet-controls {
+  display: grid;
+  grid-template-columns:
+    48px
+    minmax(0, 1fr)
+    48px;
+
+  align-items: center;
+  width: 100%;
+  margin-top: 2px;
+}
+
+.player-sheet-main-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+}
+
+.player-sheet-control,
+.player-sheet-secondary-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  transition:
+    color var(--transition-ui),
+    background var(--transition-ui),
+    transform var(--transition-fast);
+}
+
+.player-sheet-control {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: rgba(235, 241, 247, 0.84);
+}
+
+.player-sheet-control.main {
+  width: 58px;
+  height: 58px;
+
+  background: rgba(255, 255, 255, 0.075);
+  color: var(--text-strong);
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025);
+}
+
+.player-sheet-secondary-control {
+  width: 46px;
+  height: 46px;
+  justify-self: center;
+
+  border-radius: 13px;
+  color: var(--player-muted);
+}
+
+.player-sheet-secondary-control.active {
+  background: rgba(64, 156, 255, 0.09);
+  color: var(--accent-bright);
+}
+
+.player-sheet-control:active,
+.player-sheet-secondary-control:active {
+  transform: scale(0.92);
+  background: rgba(64, 156, 255, 0.07);
+  color: var(--accent-bright);
+}
+
+@media (max-height: 700px) {
+  .player-sheet-controls {
+    margin-top: 0;
+  }
+
+  .player-sheet-control.main {
+    width: 54px;
+    height: 54px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .player-sheet,
+  .player-backdrop,
+  .player-sheet-control,
+  .player-sheet-secondary-control,
+  .player-sheet-volume-button,
+  .player-sheet-progress::-webkit-slider-thumb {
+    transition: none;
+  }
+}
+
+
+/* ===== Video player ===== */
+/* ---------- Video Player ---------- */
+
+.video-player-backdrop {
+  z-index: 70;
+}
+
+.video-player {
+  /*
+    完全な全幅ではなく、左右にだけ細い縁を残す。
+    上下のChromeは最小限。
+  */
+  left: 7px;
+  right: 7px;
+
+  display: none;
+
+  max-height: calc(
+    100dvh
+    - var(--nav-height)
+    - env(safe-area-inset-bottom)
+    - 8px
+  );
+
+  overflow: hidden;
+
+  padding: 3px 0 4px;
+
+  border:
+    1px solid
+    rgba(82, 183, 255, 0.07);
+
+  border-radius: 15px;
+
+  background: linear-gradient(
+    145deg,
+    rgba(18, 33, 51, 0.99),
+    rgba(8, 17, 28, 0.995) 70%,
+    rgba(5, 11, 19, 1)
+  );
+
+  z-index: 80;
+}
+
+.video-player.open {
+  display: block;
+}
+
+.video-player-top {
+  padding: 0 7px;
+}
+
+.video-player-handle {
+  width: 34px;
+  margin-bottom: 2px;
+}
+
+.video-player-title {
+  min-height: 15px;
+
+  margin: 0 0 2px;
+
+  overflow: hidden;
+
+  color:
+    rgba(190, 201, 212, 0.50);
+
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 15px;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.video-frame {
+  position: relative;
+
+  width: 100%;
+  aspect-ratio: 16 / 9;
+
+  overflow: hidden;
+
+  border: 0;
+  border-radius: 0;
+
+  background: #000;
+}
+
+.video-element {
+  display: block;
+
+  width: 100%;
+  height: 100%;
+
+  background: #000;
+
+  object-fit: contain;
+}
+
+.video-fullscreen-button {
+  position: absolute;
+
+  right: 9px;
+  bottom: 9px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 46px;
+  height: 46px;
+
+  padding: 0;
+
+  border: 0;
+  border-radius: 12px;
+
+  background:
+    rgba(5, 12, 20, 0.60);
+
+  color:
+    rgba(247, 249, 251, 0.96);
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+
+  cursor: pointer;
+
+  transition:
+    background var(--transition-ui),
+    color var(--transition-ui),
+    transform var(--transition-fast);
+}
+
+.video-fullscreen-button:active {
+  transform: scale(0.94);
+
+  background:
+    rgba(34, 67, 101, 0.88);
+
+  color: var(--accent-bright);
+}
+
+/*
+  Audioと同じ順序:
+  seek
+  volume
+  controls
+
+  最も使う再生操作を最下部に置く。
+*/
+.video-lower {
+  padding: 3px 9px 0;
+}
+
+/* ---------- Seek ---------- */
+
+.video-progress-area {
+  width: 100%;
+}
+
+.video-progress {
+  width: 100%;
+  height: 18px;
+
+  margin: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  background: transparent;
+
+  cursor: pointer;
+}
+
+.video-progress::-webkit-slider-runnable-track {
+  height: 4px;
+
+  border-radius: 999px;
+
+  background: linear-gradient(
+    to right,
+    var(--accent-bright) 0%,
+    var(--accent-bright)
+      calc(var(--progress, 0) * 1%),
+    var(--track)
+      calc(var(--progress, 0) * 1%),
+    var(--track) 100%
+  );
+}
+
+.video-progress::-webkit-slider-thumb {
+  width: 13px;
+  height: 13px;
+
+  margin-top: -4.5px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 50%;
+
+  background: var(--accent-bright);
+
+  box-shadow:
+    0 0 10px
+    rgba(82, 183, 255, 0.28);
+}
+
+.video-time {
+  display: flex;
+  justify-content: space-between;
+
+  margin-top: -2px;
+
+  color: var(--text-secondary);
+
+  font-size: 9px;
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---------- Volume ---------- */
+
+.video-volume {
+  display: grid;
+  grid-template-columns:
+    26px
+    minmax(0, 1fr)
+    26px;
+
+  align-items: center;
+
+  width: 100%;
+
+  gap: 7px;
+
+  margin-top: 2px;
+}
+
+.video-volume-button,
+.video-skip-control,
+.video-play-control {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  cursor: pointer;
+
+  transition:
+    background var(--transition-ui),
+    color var(--transition-ui),
+    transform var(--transition-fast);
+}
+
+.video-volume-button {
+  width: 26px;
+  height: 26px;
+
+  border-radius: 8px;
+
+  color: var(--player-muted);
+}
+
+.video-volume-slider {
+  width: 100%;
+  height: 16px;
+
+  margin: 0;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  background: transparent;
+
+  cursor: pointer;
+}
+
+.video-volume-slider::-webkit-slider-runnable-track {
+  height: 3px;
+
+  border-radius: 999px;
+
+  background: var(--track);
+}
+
+.video-volume-slider::-webkit-slider-thumb {
+  width: 11px;
+  height: 11px;
+
+  margin-top: -4px;
+
+  appearance: none;
+  -webkit-appearance: none;
+
+  border: 0;
+  border-radius: 50%;
+
+  background:
+    rgba(235, 241, 247, 0.92);
+}
+
+.video-volume-end {
+  justify-self: center;
+
+  color: var(--player-muted);
+}
+
+.video-volume-system {
+  grid-column: 2 / 4;
+
+  color: var(--text-secondary);
+
+  font-size: 9px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  text-align: center;
+}
+
+/* ---------- Bottom Controls ---------- */
+
+.video-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  gap: 20px;
+
+  margin-top: 1px;
+}
+
+.video-skip-control {
+  position: relative;
+
+  width: 40px;
+  height: 38px;
+
+  border-radius: 11px;
+
+  color: var(--player-muted);
+}
+
+.video-skip-control span {
+  position: absolute;
+
+  top: 50%;
+  left: 50%;
+
+  transform:
+    translate(-50%, -46%);
+
+  color:
+    rgba(238, 243, 248, 0.76);
+
+  font-size: 8px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.video-play-control {
+  width: 46px;
+  height: 46px;
+
+  border-radius: 50%;
+
+  background:
+    rgba(255, 255, 255, 0.065);
+
+  color: var(--text-strong);
+}
+
+.video-volume-button:active,
+.video-skip-control:active,
+.video-play-control:active {
+  transform: scale(0.93);
+
+  color: var(--accent-bright);
+}
+
+.video-play-control:active {
+  background:
+    rgba(64, 156, 255, 0.09);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .video-fullscreen-button,
+  .video-volume-button,
+  .video-skip-control,
+  .video-play-control {
+    transition: none;
+  }
+}

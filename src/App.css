@@ -73,7 +73,7 @@
   display: flex;
   align-items: center;
   width: fit-content;
-  margin: 6px 0 10px 14px;
+  margin: 4px 0 10px 12px;
   gap: 4px;
 }
 
@@ -81,12 +81,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 36px;
+
+  width: 48px;
+  height: 44px;
   padding: 0;
 
   border: 0;
-  border-radius: var(--radius-control);
+  border-radius: 13px;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
@@ -128,12 +129,13 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 54px;
-  height: 36px;
+
+  width: 60px;
+  height: 44px;
   padding: 0;
 
   border: 1px solid rgba(99, 172, 255, 0.10);
-  border-radius: 18px;
+  border-radius: 22px;
   background: rgba(20, 37, 57, 0.82);
   color: var(--accent-soft);
 
@@ -148,7 +150,6 @@
     background 0.12s ease,
     color 0.12s ease;
 }
-
 
 .shuffle-button:active {
   transform: scale(0.94);
@@ -172,7 +173,7 @@
   align-items: flex-start;
   justify-content: center;
   height: calc(var(--nav-height) + env(safe-area-inset-bottom));
-  padding: 3px 28px env(safe-area-inset-bottom);
+  padding: 2px 20px env(safe-area-inset-bottom);
 
   background: linear-gradient(
     180deg,
@@ -190,14 +191,16 @@
   display: flex;
   align-items: center;
   justify-content: center;
+
   width: 50%;
-  height: 52px;
+  height: 54px;
   padding: 0;
 
   border: 0;
   background: transparent;
   color: var(--nav-muted);
   cursor: pointer;
+
   transition:
     color var(--transition-ui),
     transform var(--transition-fast);

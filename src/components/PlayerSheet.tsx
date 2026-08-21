@@ -1,5 +1,9 @@
-import { useRef, useState } from "react"
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
+import { useLayoutEffect, useRef, useState } from "react"
+import type {
+  CSSProperties,
+  MouseEvent as ReactMouseEvent,
+  PointerEvent as ReactPointerEvent,
+} from "react"
 import {
   Pause,
   Play,
@@ -21,17 +25,31 @@ type Props = {
   onClose: () => void
 }
 
+type SheetSnap = "half" | "expanded"
+
+type SnapHeights = {
+  half: number
+  expanded: number
+}
+
 export function PlayerSheet({
   player,
   onClose,
 }: Props) {
   const sheetRef = useRef<HTMLElement | null>(null)
   const activePointerIdRef = useRef<number | null>(null)
+  const dragStartXRef = useRef(0)
   const dragStartYRef = useRef(0)
+  const dragStartHeightRef = useRef(0)
   const dragStartTimeRef = useRef(0)
+  const dragStartedRef = useRef(false)
+  const dragOriginQueueRef = useRef<HTMLElement | null>(null)
+  const suppressClickRef = useRef(false)
   const closingRef = useRef(false)
+  const startSnapRef = useRef<SheetSnap>("half")
 
-  const [dragY, setDragY] = useState(0)
+  const [snap, setSnap] = useState<SheetSnap>("half")
+  const [sheetHeight, setSheetHeight] = useState(0)
   const [isDragging, setIsDragging] = useState(false)
   const [isClosing, setIsClosing] = useState(false)
 
@@ -46,6 +64,73 @@ export function PlayerSheet({
     canAdjustVolume,
   } = player
 
+  const getSnapHeights = (): SnapHeights => {
+    const sheet = sheetRef.current
+    const viewportHeight =
+      window.visualViewport?.height ?? window.innerHeight
+
+    let expandedHeight = Math.max(
+      360,
+      viewportHeight - 96,
+    )
+
+    if (sheet) {
+      const maxHeight = Number.parseFloat(
+        window.getComputedStyle(sheet).maxHeight,
+      )
+
+      if (Number.isFinite(maxHeight) && maxHeight > 0) {
+        expandedHeight = maxHeight
+      }
+    }
+
+    const preferredHalfHeight = Math.max(
+      300,
+      viewportHeight * 0.5,
+    )
+
+    const halfHeight = Math.min(
+      preferredHalfHeight,
+      Math.max(220, expandedHeight - 72),
+    )
+
+    return {
+      half: halfHeight,
+      expanded: expandedHeight,
+    }
+  }
+
+  useLayoutEffect(() => {
+    if (!currentItem) {
+      return
+    }
+
+    const syncHeight = () => {
+      if (closingRef.current || isDragging) {
+        return
+      }
+
+      const heights = getSnapHeights()
+      setSheetHeight(heights[snap])
+    }
+
+    syncHeight()
+
+    window.addEventListener("resize", syncHeight)
+    window.visualViewport?.addEventListener(
+      "resize",
+      syncHeight,
+    )
+
+    return () => {
+      window.removeEventListener("resize", syncHeight)
+      window.visualViewport?.removeEventListener(
+        "resize",
+        syncHeight,
+      )
+    }
+  }, [currentItem?.id, snap, isDragging])
+
   if (!currentItem) {
     return null
   }
@@ -54,6 +139,13 @@ export function PlayerSheet({
     duration > 0
       ? (currentTime / duration) * 100
       : 0
+
+  const snapTo = (nextSnap: SheetSnap) => {
+    const heights = getSnapHeights()
+
+    setSnap(nextSnap)
+    setSheetHeight(heights[nextSnap])
+  }
 
   const closeWithAnimation = () => {
     if (closingRef.current) {
@@ -64,111 +156,239 @@ export function PlayerSheet({
     setIsDragging(false)
     setIsClosing(true)
 
-    const sheetHeight =
-      sheetRef.current?.getBoundingClientRect().height ?? 420
-
-    setDragY(sheetHeight + 32)
-
     const reduceMotion =
-      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
+      window.matchMedia?.(
+        "(prefers-reduced-motion: reduce)",
+      ).matches ?? false
 
     window.setTimeout(
       onClose,
-      reduceMotion ? 0 : 180,
+      reduceMotion ? 0 : 200,
     )
   }
 
+  const resetPointerTracking = () => {
+    activePointerIdRef.current = null
+    dragStartedRef.current = false
+    dragOriginQueueRef.current = null
+    setIsDragging(false)
+  }
+
   const handlePointerDown = (
-    event: ReactPointerEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLElement>,
   ) => {
     if (
       closingRef.current ||
+      activePointerIdRef.current !== null ||
       (event.pointerType === "mouse" && event.button !== 0)
     ) {
       return
     }
 
-    activePointerIdRef.current = event.pointerId
-    dragStartYRef.current = event.clientY
-    dragStartTimeRef.current = performance.now()
-    setDragY(0)
-    setIsDragging(true)
+    const target =
+      event.target instanceof Element
+        ? event.target
+        : null
 
-    event.currentTarget.setPointerCapture(event.pointerId)
+    // Seek / Volumeは横操作を最優先する。
+    if (target?.closest('input[type="range"]')) {
+      return
+    }
+
+    activePointerIdRef.current = event.pointerId
+    dragStartXRef.current = event.clientX
+    dragStartYRef.current = event.clientY
+    dragStartHeightRef.current = sheetHeight
+    dragStartTimeRef.current = performance.now()
+    dragStartedRef.current = false
+    startSnapRef.current = snap
+    dragOriginQueueRef.current =
+      (target?.closest(
+        ".player-sheet-queue-scroll",
+      ) as HTMLElement | null) ?? null
   }
 
   const handlePointerMove = (
-    event: ReactPointerEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLElement>,
   ) => {
     if (activePointerIdRef.current !== event.pointerId) {
       return
     }
 
-    const distance = Math.max(
-      0,
-      event.clientY - dragStartYRef.current,
+    const deltaX =
+      event.clientX - dragStartXRef.current
+    const deltaY =
+      event.clientY - dragStartYRef.current
+
+    if (!dragStartedRef.current) {
+      const verticalDistance = Math.abs(deltaY)
+      const horizontalDistance = Math.abs(deltaX)
+
+      if (verticalDistance < 8) {
+        return
+      }
+
+      // 横方向の操作はSheetが奪わない。
+      if (
+        horizontalDistance >
+        verticalDistance * 0.85
+      ) {
+        resetPointerTracking()
+        return
+      }
+
+      const queue = dragOriginQueueRef.current
+
+      if (queue && startSnapRef.current === "expanded") {
+        // Expanded中の上スワイプはQueueスクロールへ譲る。
+        if (deltaY < 0) {
+          resetPointerTracking()
+          return
+        }
+
+        // Queueが途中なら、下スワイプもQueueを先に戻す。
+        if (queue.scrollTop > 0) {
+          resetPointerTracking()
+          return
+        }
+      }
+
+      dragStartedRef.current = true
+      suppressClickRef.current = true
+      setIsDragging(true)
+
+      event.currentTarget.setPointerCapture(
+        event.pointerId,
+      )
+    }
+
+    if (event.cancelable) {
+      event.preventDefault()
+    }
+
+    const heights = getSnapHeights()
+    const minimumDragHeight = Math.min(
+      220,
+      heights.half * 0.65,
     )
 
-    setDragY(distance)
+    // 指を上へ動かすほどSheetが大きくなる。
+    const nextHeight =
+      dragStartHeightRef.current - deltaY
+
+    setSheetHeight(
+      Math.min(
+        Math.max(nextHeight, minimumDragHeight),
+        heights.expanded,
+      ),
+    )
   }
 
   const finishPointerDrag = (
-    event: ReactPointerEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLElement>,
   ) => {
     if (activePointerIdRef.current !== event.pointerId) {
       return
     }
 
-    const distance = Math.max(
-      0,
-      event.clientY - dragStartYRef.current,
-    )
+    if (!dragStartedRef.current) {
+      resetPointerTracking()
+      return
+    }
+
+    const deltaY =
+      event.clientY - dragStartYRef.current
 
     const elapsed = Math.max(
       performance.now() - dragStartTimeRef.current,
       1,
     )
 
-    const velocity = distance / elapsed
+    const velocityY = deltaY / elapsed
 
-    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-      event.currentTarget.releasePointerCapture(event.pointerId)
+    if (
+      event.currentTarget.hasPointerCapture(
+        event.pointerId,
+      )
+    ) {
+      event.currentTarget.releasePointerCapture(
+        event.pointerId,
+      )
     }
 
-    activePointerIdRef.current = null
-    setIsDragging(false)
+    const startSnap = startSnapRef.current
+    resetPointerTracking()
 
-    const shouldClose =
-      distance >= 72 ||
-      (distance >= 24 && velocity >= 0.55)
+    if (startSnap === "half") {
+      const shouldExpand =
+        deltaY <= -72 ||
+        (deltaY <= -24 && velocityY <= -0.5)
 
-    if (shouldClose) {
-      closeWithAnimation()
-      return
+      const shouldClose =
+        deltaY >= 88 ||
+        (deltaY >= 28 && velocityY >= 0.58)
+
+      if (shouldExpand) {
+        snapTo("expanded")
+      } else if (shouldClose) {
+        closeWithAnimation()
+      } else {
+        snapTo("half")
+      }
+    } else {
+      const shouldCollapse =
+        deltaY >= 76 ||
+        (deltaY >= 24 && velocityY >= 0.52)
+
+      if (shouldCollapse) {
+        snapTo("half")
+      } else {
+        snapTo("expanded")
+      }
     }
 
-    setDragY(0)
+    window.setTimeout(() => {
+      suppressClickRef.current = false
+    }, 0)
   }
 
   const cancelPointerDrag = (
-    event: ReactPointerEvent<HTMLDivElement>,
+    event: ReactPointerEvent<HTMLElement>,
   ) => {
     if (activePointerIdRef.current !== event.pointerId) {
       return
     }
 
-    activePointerIdRef.current = null
-    setIsDragging(false)
-    setDragY(0)
+    const startSnap = startSnapRef.current
+
+    resetPointerTracking()
+    snapTo(startSnap)
+    suppressClickRef.current = false
   }
 
-  const backdropOpacity = Math.max(
-    0,
-    1 - dragY / 240,
+  const handleClickCapture = (
+    event: ReactMouseEvent<HTMLElement>,
+  ) => {
+    if (!suppressClickRef.current) {
+      return
+    }
+
+    suppressClickRef.current = false
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  const heights = getSnapHeights()
+  const backdropOpacity = Math.min(
+    1,
+    Math.max(
+      0.35,
+      sheetHeight / Math.max(heights.half, 1),
+    ),
   )
 
   const sheetStyle = {
-    "--player-sheet-drag-y": `${dragY}px`,
+    "--player-sheet-height": `${sheetHeight}px`,
   } as CSSProperties
 
   return (
@@ -183,24 +403,34 @@ export function PlayerSheet({
 
       <section
         ref={sheetRef}
-        className={`bottom-sheet player-sheet${
+        className={`bottom-sheet player-sheet snap-${snap}${
           isDragging ? " is-dragging" : ""
         }${isClosing ? " is-closing" : ""}`}
         style={sheetStyle}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={finishPointerDrag}
+        onPointerCancel={cancelPointerDrag}
+        onClickCapture={handleClickCapture}
       >
         <div
           className="player-sheet-drag-area"
           role="button"
           tabIndex={0}
-          aria-label="プレイヤーを閉じる"
-          onPointerDown={handlePointerDown}
-          onPointerMove={handlePointerMove}
-          onPointerUp={finishPointerDrag}
-          onPointerCancel={cancelPointerDrag}
+          aria-label={
+            snap === "half"
+              ? "プレイヤーを拡大"
+              : "プレイヤーを縮小"
+          }
+          aria-expanded={snap === "expanded"}
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault()
-              closeWithAnimation()
+              snapTo(
+                snap === "half"
+                  ? "expanded"
+                  : "half",
+              )
             }
           }}
         >
@@ -208,9 +438,7 @@ export function PlayerSheet({
         </div>
 
         <div className="player-sheet-title">
-          {getDisplayTitle(
-            currentItem.title
-          )}
+          {getDisplayTitle(currentItem.title)}
         </div>
 
         <div className="player-sheet-queue">
@@ -219,9 +447,7 @@ export function PlayerSheet({
           </div>
 
           <div className="player-sheet-queue-scroll">
-            <PlaybackQueue
-              player={player}
-            />
+            <PlaybackQueue player={player} />
           </div>
         </div>
 
@@ -240,21 +466,14 @@ export function PlayerSheet({
               } as CSSProperties}
               onChange={(event) =>
                 player.seekTo(
-                  Number(
-                    event.currentTarget.value
-                  )
+                  Number(event.currentTarget.value),
                 )
               }
             />
 
             <div className="player-sheet-time">
-              <span>
-                {formatTime(currentTime)}
-              </span>
-
-              <span>
-                {formatTime(duration)}
-              </span>
+              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(duration)}</span>
             </div>
           </div>
 
@@ -270,15 +489,9 @@ export function PlayerSheet({
               onClick={player.toggleMute}
             >
               {isMuted ? (
-                <VolumeX
-                  size={16}
-                  strokeWidth={1.8}
-                />
+                <VolumeX size={18} strokeWidth={1.8} />
               ) : (
-                <Volume2
-                  size={16}
-                  strokeWidth={1.8}
-                />
+                <Volume2 size={18} strokeWidth={1.8} />
               )}
             </button>
 
@@ -290,24 +503,18 @@ export function PlayerSheet({
                   min="0"
                   max="1"
                   step="0.05"
-                  value={
-                    isMuted
-                      ? 0
-                      : volume
-                  }
+                  value={isMuted ? 0 : volume}
                   aria-label="音量"
                   onChange={(event) =>
                     player.setVolumeLevel(
-                      Number(
-                        event.currentTarget.value
-                      )
+                      Number(event.currentTarget.value),
                     )
                   }
                 />
 
                 <Volume2
                   className="player-sheet-volume-end"
-                  size={15}
+                  size={17}
                   strokeWidth={1.6}
                   aria-hidden="true"
                 />
@@ -326,10 +533,7 @@ export function PlayerSheet({
               aria-label="Shuffle upcoming"
               onClick={player.shuffleUpcoming}
             >
-              <Shuffle
-                size={18}
-                strokeWidth={1.8}
-              />
+              <Shuffle size={20} strokeWidth={1.8} />
             </button>
 
             <div className="player-sheet-main-controls">
@@ -341,34 +545,21 @@ export function PlayerSheet({
                   void player.playPrevious()
                 }
               >
-                <SkipBack
-                  size={23}
-                  strokeWidth={1.8}
-                />
+                <SkipBack size={26} strokeWidth={1.8} />
               </button>
 
               <button
                 className="player-sheet-control main"
                 type="button"
-                aria-label={
-                  isPlaying
-                    ? "Pause"
-                    : "Play"
-                }
+                aria-label={isPlaying ? "Pause" : "Play"}
                 onClick={() =>
                   void player.togglePlay()
                 }
               >
                 {isPlaying ? (
-                  <Pause
-                    size={27}
-                    strokeWidth={1.8}
-                  />
+                  <Pause size={31} strokeWidth={1.8} />
                 ) : (
-                  <Play
-                    size={27}
-                    strokeWidth={1.8}
-                  />
+                  <Play size={31} strokeWidth={1.8} />
                 )}
               </button>
 
@@ -380,10 +571,7 @@ export function PlayerSheet({
                   void player.playNext()
                 }
               >
-                <SkipForward
-                  size={23}
-                  strokeWidth={1.8}
-                />
+                <SkipForward size={26} strokeWidth={1.8} />
               </button>
             </div>
 
@@ -395,10 +583,7 @@ export function PlayerSheet({
               aria-label="Repeat"
               onClick={player.toggleRepeat}
             >
-              <Repeat2
-                size={18}
-                strokeWidth={1.8}
-              />
+              <Repeat2 size={20} strokeWidth={1.8} />
             </button>
           </div>
         </div>

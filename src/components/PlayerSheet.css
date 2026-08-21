@@ -1,35 +1,37 @@
 /* ---------- Player Sheet ---------- */
 
 .player-backdrop {
-  /*
-    Bottom NavigationはPlayer Sheetとは別レイヤー。
-    Navigationまでblurしない。
-  */
+  /* Bottom NavigationはPlayer Sheetとは別レイヤー。 */
   bottom: calc(
     var(--nav-height)
     + env(safe-area-inset-bottom)
   );
 
   z-index: 30;
+  transition: opacity 200ms ease;
 }
 
 .player-sheet {
   display: flex;
   flex-direction: column;
 
-  height: min(48dvh, 405px);
-  min-height: 320px;
+  width: auto;
+  height: var(--player-sheet-height, 50dvh);
+  min-height: 0;
 
   max-height: calc(
     100dvh
     - var(--nav-height)
     - env(safe-area-inset-bottom)
-    - 18px
+    - var(--sheet-bottom-gap)
+    - env(safe-area-inset-top)
+    - 10px
   );
 
   overflow: hidden;
+  overscroll-behavior: contain;
 
-  padding: 8px 16px 8px;
+  padding: 6px 16px 10px;
 
   background: linear-gradient(
     145deg,
@@ -38,30 +40,24 @@
     rgba(6, 13, 22, 1)
   );
 
-  transform: translate3d(
-    0,
-    var(--player-sheet-drag-y, 0px),
-    0
-  );
+  transform: translate3d(0, 0, 0);
 
   transition:
-    transform 180ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    height 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
 
-  will-change: transform;
-
+  will-change: height, transform;
   z-index: 40;
 }
 
 .player-sheet.is-dragging {
   transition: none;
+  cursor: grabbing;
 }
 
 .player-sheet.is-closing {
+  transform: translate3d(0, calc(100% + 36px), 0);
   pointer-events: none;
-}
-
-.player-backdrop {
-  transition: opacity 180ms ease;
 }
 
 .player-backdrop.is-dragging {
@@ -69,21 +65,22 @@
 }
 
 .player-backdrop.is-closing {
+  opacity: 0 !important;
   pointer-events: none;
 }
+
+/* ---------- Drag Area ---------- */
 
 .player-sheet-drag-area {
   display: flex;
   flex: 0 0 auto;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
 
-  height: 24px;
+  height: 32px;
   margin: -2px -8px 0;
-  padding-top: 5px;
 
   cursor: grab;
-
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
@@ -95,25 +92,49 @@
 
 .player-handle {
   flex: 0 0 auto;
-
-  width: 34px;
-  margin-bottom: 0;
+  width: 40px;
+  height: 5px;
+  margin: 0;
 }
+
+/*
+  Sheet全体でPointer Eventsを受ける。
+  Seek / VolumeはTS側で除外し、横操作を優先する。
+*/
+.player-sheet-title,
+.player-sheet-section-title,
+.player-sheet-lower {
+  touch-action: none;
+}
+
+/*
+  Half中は上スワイプをSheet拡大へ使う。
+  Expanded後はQueueの通常スクロールを有効にする。
+*/
+.player-sheet.snap-half .player-sheet-queue-scroll {
+  overflow-y: hidden;
+  touch-action: none;
+}
+
+.player-sheet.snap-expanded .player-sheet-queue-scroll {
+  overflow-y: auto;
+  touch-action: pan-y;
+}
+
+/* ---------- Title ---------- */
 
 .player-sheet-title {
   flex: 0 0 auto;
 
   width: 100%;
-  min-height: 19px;
-
+  min-height: 22px;
   overflow: hidden;
 
   color: var(--text-strong);
-
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 500;
   letter-spacing: 0.005em;
-  line-height: 19px;
+  line-height: 22px;
 
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -123,22 +144,18 @@
 
 .player-sheet-queue {
   display: flex;
-
   min-height: 0;
   flex: 1 1 auto;
   flex-direction: column;
-
-  margin-top: 7px;
+  margin-top: 8px;
 }
 
 .player-sheet-section-title {
   flex: 0 0 auto;
-
-  padding: 0 2px 3px;
+  padding: 0 2px 5px;
 
   color: var(--text-secondary);
-
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 500;
   letter-spacing: 0.11em;
 }
@@ -147,11 +164,8 @@
   min-height: 0;
   flex: 1 1 auto;
 
-  overflow-y: auto;
-
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-
   scrollbar-width: none;
 }
 
@@ -159,22 +173,11 @@
   display: none;
 }
 
-/*
-  Audio / Video共通:
-  content
-  ↓
-  seek
-  ↓
-  volume
-  ↓
-  controls
+/* ---------- Lower Controls ---------- */
 
-  高頻度操作ほど下側へ配置する。
-*/
 .player-sheet-lower {
   flex: 0 0 auto;
-
-  padding-top: 6px;
+  padding-top: 8px;
 
   border-top:
     1px solid
@@ -189,21 +192,18 @@
 
 .player-sheet-progress {
   width: 100%;
-  height: 18px;
-
+  height: 28px;
   margin: 0;
 
   appearance: none;
   -webkit-appearance: none;
-
   background: transparent;
-
   cursor: pointer;
+  touch-action: pan-x;
 }
 
 .player-sheet-progress::-webkit-slider-runnable-track {
-  height: 4px;
-
+  height: 5px;
   border-radius: 999px;
 
   background: linear-gradient(
@@ -218,22 +218,19 @@
 }
 
 .player-sheet-progress::-webkit-slider-thumb {
-  width: 13px;
-  height: 13px;
-
-  margin-top: -4.5px;
+  width: 16px;
+  height: 16px;
+  margin-top: -5.5px;
 
   appearance: none;
   -webkit-appearance: none;
 
   border: 0;
   border-radius: 50%;
-
   background: var(--accent-bright);
 
   box-shadow:
-    0 0 10px
-    rgba(82, 183, 255, 0.28);
+    0 0 12px rgba(82, 183, 255, 0.30);
 
   transition:
     transform var(--transition-fast),
@@ -241,18 +238,17 @@
 }
 
 .player-sheet-progress:active::-webkit-slider-thumb {
-  transform: scale(1.15);
+  transform: scale(1.14);
 }
 
 .player-sheet-time {
   display: flex;
   justify-content: space-between;
 
-  margin-top: -2px;
+  margin-top: -3px;
 
   color: var(--text-secondary);
-
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
@@ -262,17 +258,14 @@
 .player-sheet-volume {
   display: grid;
   grid-template-columns:
-    26px
+    44px
     minmax(0, 1fr)
-    26px;
+    32px;
 
   align-items: center;
-
   width: 100%;
-
-  gap: 7px;
-
-  margin-top: 2px;
+  gap: 5px;
+  margin-top: 1px;
 }
 
 .player-sheet-volume-button {
@@ -280,65 +273,55 @@
   align-items: center;
   justify-content: center;
 
-  width: 26px;
-  height: 26px;
-
+  width: 44px;
+  height: 44px;
   padding: 0;
 
   border: 0;
-  border-radius: 8px;
-
+  border-radius: 12px;
   background: transparent;
   color: var(--player-muted);
-
   cursor: pointer;
 }
 
 .player-sheet-volume-button:active {
+  background: rgba(64, 156, 255, 0.07);
   color: var(--accent-bright);
 }
 
 .player-sheet-volume-slider {
   width: 100%;
-  height: 16px;
-
+  height: 28px;
   margin: 0;
 
   appearance: none;
   -webkit-appearance: none;
-
   background: transparent;
-
   cursor: pointer;
+  touch-action: pan-x;
 }
 
 .player-sheet-volume-slider::-webkit-slider-runnable-track {
-  height: 3px;
-
+  height: 4px;
   border-radius: 999px;
-
   background: var(--track);
 }
 
 .player-sheet-volume-slider::-webkit-slider-thumb {
-  width: 11px;
-  height: 11px;
-
-  margin-top: -4px;
+  width: 14px;
+  height: 14px;
+  margin-top: -5px;
 
   appearance: none;
   -webkit-appearance: none;
 
   border: 0;
   border-radius: 50%;
-
-  background:
-    rgba(235, 241, 247, 0.92);
+  background: rgba(235, 241, 247, 0.94);
 }
 
 .player-sheet-volume-end {
   justify-self: center;
-
   color: var(--player-muted);
 }
 
@@ -346,11 +329,9 @@
   grid-column: 2 / 4;
 
   color: var(--text-secondary);
-
-  font-size: 9px;
+  font-size: 10px;
   font-weight: 400;
   letter-spacing: 0.01em;
-
   text-align: center;
 }
 
@@ -359,14 +340,12 @@
 .player-sheet-controls {
   display: grid;
   grid-template-columns:
-    36px
+    48px
     minmax(0, 1fr)
-    36px;
+    48px;
 
   align-items: center;
-
   width: 100%;
-
   margin-top: 2px;
 }
 
@@ -374,8 +353,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-
-  gap: 20px;
+  gap: 16px;
 }
 
 .player-sheet-control,
@@ -385,10 +363,8 @@
   justify-content: center;
 
   padding: 0;
-
   border: 0;
   background: transparent;
-
   cursor: pointer;
 
   transition:
@@ -398,54 +374,52 @@
 }
 
 .player-sheet-control {
-  width: 38px;
-  height: 38px;
-
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-
-  color:
-    rgba(235, 241, 247, 0.82);
+  color: rgba(235, 241, 247, 0.84);
 }
 
 .player-sheet-control.main {
-  width: 46px;
-  height: 46px;
+  width: 58px;
+  height: 58px;
 
-  background:
-    rgba(255, 255, 255, 0.07);
-
+  background: rgba(255, 255, 255, 0.075);
   color: var(--text-strong);
+
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.025);
 }
 
 .player-sheet-secondary-control {
-  width: 34px;
-  height: 34px;
-
+  width: 46px;
+  height: 46px;
   justify-self: center;
 
-  border-radius: 10px;
-
+  border-radius: 13px;
   color: var(--player-muted);
 }
 
 .player-sheet-secondary-control.active {
-  background:
-    rgba(64, 156, 255, 0.08);
-
+  background: rgba(64, 156, 255, 0.09);
   color: var(--accent-bright);
 }
 
 .player-sheet-control:active,
 .player-sheet-secondary-control:active {
   transform: scale(0.92);
-
+  background: rgba(64, 156, 255, 0.07);
   color: var(--accent-bright);
 }
 
 @media (max-height: 700px) {
-  .player-sheet {
-    height: min(50dvh, 350px);
-    min-height: 295px;
+  .player-sheet-controls {
+    margin-top: 0;
+  }
+
+  .player-sheet-control.main {
+    width: 54px;
+    height: 54px;
   }
 }
 

@@ -7,7 +7,7 @@
 .queue-history-row,
 .queue-current-row,
 .queue-row {
-  min-height: 42px;
+  min-height: 48px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.022);
 }
 
@@ -16,7 +16,7 @@
   align-items: center;
 
   width: 100%;
-  padding: 0 70px 0 2px;
+  padding: 0 84px 0 2px;
 
   border-top: 0;
   border-left: 0;
@@ -36,7 +36,7 @@
   align-items: center;
 
   gap: 9px;
-  padding: 0 70px 0 2px;
+  padding: 0 84px 0 2px;
 }
 
 .queue-current-row.has-history {
@@ -74,7 +74,7 @@
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
 
-  min-height: 42px;
+  min-height: 48px;
 }
 
 .queue-title-button {
@@ -82,9 +82,9 @@
   align-items: center;
 
   min-width: 0;
-  height: 42px;
+  height: 48px;
 
-  padding: 0 6px 0 2px;
+  padding: 0 8px 0 2px;
 
   border: 0;
   background: transparent;
@@ -118,7 +118,7 @@
 .queue-row-actions {
   display: flex;
   align-items: center;
-  gap: 1px;
+  gap: 0;
 }
 
 .queue-icon-button,
@@ -127,8 +127,8 @@
   align-items: center;
   justify-content: center;
 
-  width: 34px;
-  height: 38px;
+  width: 44px;
+  height: 44px;
 
   padding: 0;
   border: 0;
@@ -157,15 +157,15 @@
   display: flex;
   justify-content: flex-end;
 
-  padding: 0 36px 8px 8px;
+  padding: 0 44px 8px 8px;
 }
 
 .queue-play-next {
-  min-height: 30px;
-  padding: 6px 11px;
+  min-height: 38px;
+  padding: 8px 13px;
 
   border: 1px solid var(--border-accent);
-  border-radius: 10px;
+  border-radius: 11px;
 
   background: rgba(64, 156, 255, 0.07);
   color: var(--text);

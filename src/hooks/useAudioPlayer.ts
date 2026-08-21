@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
-import type { MediaItem } from "../media"
+import { getDisplayTitle, type MediaItem } from "../media"
 
 function shuffleItems(items: MediaItem[]) {
   const shuffled = [...items]
@@ -15,6 +15,13 @@ function shuffleItems(items: MediaItem[]) {
   }
 
   return shuffled
+}
+
+function hasMediaSession() {
+  return (
+    typeof navigator !== "undefined" &&
+    "mediaSession" in navigator
+  )
 }
 
 export function useAudioPlayer(items: MediaItem[]) {
@@ -34,9 +41,6 @@ export function useAudioPlayer(items: MediaItem[]) {
     history     = 実際に再生した曲
     currentItem = 現在の曲
     upNext      = これから再生する曲
-
-    Library の並び順とは分離しているため、
-    Shuffle / Play next / Drag reorder が分かりやすい。
   */
   const [history, setHistory] = useState<MediaItem[]>([])
   const [currentItem, setCurrentItem] = useState<MediaItem | null>(null)
@@ -50,6 +54,36 @@ export function useAudioPlayer(items: MediaItem[]) {
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
   const [canAdjustVolume, setCanAdjustVolume] = useState(false)
+
+  const updateMediaSessionPosition = () => {
+    if (!hasMediaSession()) return
+
+    const audio = audioRef.current
+    if (!audio) return
+
+    if (
+      typeof navigator.mediaSession.setPositionState !== "function" ||
+      !Number.isFinite(audio.duration) ||
+      audio.duration <= 0
+    ) {
+      return
+    }
+
+    const position = Math.min(
+      Math.max(audio.currentTime, 0),
+      audio.duration,
+    )
+
+    try {
+      navigator.mediaSession.setPositionState({
+        duration: audio.duration,
+        playbackRate: audio.playbackRate || 1,
+        position,
+      })
+    } catch {
+      // Safari等で一時的にposition stateを受け付けない場合は無視する。
+    }
+  }
 
   const startAudioItem = async (item: MediaItem) => {
     if (item.type !== "audio" || !item.url) {
@@ -124,6 +158,7 @@ export function useAudioPlayer(items: MediaItem[]) {
 
     audio.currentTime = time
     setCurrentTime(time)
+    updateMediaSessionPosition()
   }
 
   const playNext = async () => {
@@ -158,17 +193,12 @@ export function useAudioPlayer(items: MediaItem[]) {
     setIsPlaying(false)
   }
 
-  const playPrevious = async () => {
+  /*
+    ロック画面のPrevious用。
+    3秒ルールを使わず、必ず前の曲へ移動する。
+  */
+  const playPreviousTrack = async () => {
     if (!currentItem) return
-
-    const audio = audioRef.current
-    if (!audio) return
-
-    // 一般的なPlayerと同様、3秒以上進んでいたら曲頭へ戻す。
-    if (audio.currentTime > 3) {
-      seekTo(0)
-      return
-    }
 
     const previousItem = history.at(-1)
 
@@ -181,6 +211,21 @@ export function useAudioPlayer(items: MediaItem[]) {
     setUpNext((currentUpNext) => [currentItem, ...currentUpNext])
 
     await startAudioItem(previousItem)
+  }
+
+  const playPrevious = async () => {
+    if (!currentItem) return
+
+    const audio = audioRef.current
+    if (!audio) return
+
+    // アプリUIでは一般的なPlayerと同様、3秒以上なら曲頭へ戻す。
+    if (audio.currentTime > 3) {
+      seekTo(0)
+      return
+    }
+
+    await playPreviousTrack()
   }
 
   // 再生済みの曲をTapしたとき、その時点までPlaybackを巻き戻す。
@@ -343,6 +388,7 @@ export function useAudioPlayer(items: MediaItem[]) {
     }
 
     detectVolumeSupport()
+    updateMediaSessionPosition()
   }
 
   const handleVolumeChange = () => {
@@ -355,6 +401,117 @@ export function useAudioPlayer(items: MediaItem[]) {
 
   const toggleRepeat = () => {
     setIsRepeat((value) => !value)
+  }
+
+  /*
+    iOS Safari / PWA のロック画面・Control Center向け。
+
+    - title       : 現在の曲名
+    - artwork     : Plav共通アイコン
+    - previous    : 前の曲
+    - next        : 次の曲
+    - ±10秒Skip   : 登録しない
+  */
+  useEffect(() => {
+    if (!currentItem || !hasMediaSession()) {
+      return
+    }
+
+    const title = getDisplayTitle(currentItem.title)
+
+    document.title = title
+
+    try {
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title,
+        artist: "Plav",
+        artwork: [
+          {
+            src: "/icons/plav-192.png",
+            sizes: "192x192",
+            type: "image/png",
+          },
+          {
+            src: "/icons/plav-512.png",
+            sizes: "512x512",
+            type: "image/png",
+          },
+        ],
+      })
+    } catch {
+      // MediaMetadata非対応環境ではページタイトルだけ利用する。
+    }
+
+    const setHandler = (
+      action: MediaSessionAction,
+      handler: MediaSessionActionHandler | null,
+    ) => {
+      try {
+        navigator.mediaSession.setActionHandler(
+          action,
+          handler,
+        )
+      } catch {
+        // Safariのバージョン差で未対応Actionの場合は無視する。
+      }
+    }
+
+    setHandler("play", () => {
+      void audioRef.current?.play()
+    })
+
+    setHandler("pause", () => {
+      audioRef.current?.pause()
+    })
+
+    setHandler("previoustrack", () => {
+      void playPreviousTrack()
+    })
+
+    setHandler("nexttrack", () => {
+      void playNext()
+    })
+
+    setHandler("seekto", (details) => {
+      if (typeof details.seekTime === "number") {
+        seekTo(details.seekTime)
+      }
+    })
+
+    // ±10秒SkipのActionは明示的に解除する。
+    setHandler("seekbackward", null)
+    setHandler("seekforward", null)
+
+    updateMediaSessionPosition()
+
+    return () => {
+      setHandler("play", null)
+      setHandler("pause", null)
+      setHandler("previoustrack", null)
+      setHandler("nexttrack", null)
+      setHandler("seekto", null)
+    }
+  }, [currentItem, history, upNext, isRepeat])
+
+  const handlePlay = () => {
+    setIsPlaying(true)
+
+    if (hasMediaSession()) {
+      navigator.mediaSession.playbackState = "playing"
+    }
+  }
+
+  const handlePause = () => {
+    setIsPlaying(false)
+
+    if (hasMediaSession()) {
+      navigator.mediaSession.playbackState = "paused"
+    }
+  }
+
+  const handleTimeUpdate = (time: number) => {
+    setCurrentTime(time)
+    updateMediaSessionPosition()
   }
 
   return {
@@ -378,6 +535,7 @@ export function useAudioPlayer(items: MediaItem[]) {
     seekTo,
     playNext,
     playPrevious,
+    playPreviousTrack,
     playHistoryItem,
     playUpNextItem,
     shuffleAll,
@@ -389,9 +547,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     setVolumeLevel,
     toggleMute,
 
-    handlePlay: () => setIsPlaying(true),
-    handlePause: () => setIsPlaying(false),
-    handleTimeUpdate: (time: number) => setCurrentTime(time),
+    handlePlay,
+    handlePause,
+    handleTimeUpdate,
     handleLoadedMetadata,
     handleVolumeChange,
     handleEnded: () => void playNext(),

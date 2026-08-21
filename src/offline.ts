@@ -281,20 +281,40 @@ export function useOfflineMedia(items: MediaItem[]) {
     isSupported,
   ])
 
-  return {
-    isSupported,
-    isReady,
-    autoDownload,
-    downloadedIds,
-    downloadingIds,
-    errorIds,
-    downloadedCount: audioItems.filter((item) =>
-      downloadedIds.has(item.id),
-    ).length,
-    totalCount: audioItems.length,
-    toggleDownload,
-    setAutoDownload,
-  }
+  const downloadedCount = useMemo(
+    () =>
+      audioItems.filter((item) => downloadedIds.has(item.id)).length,
+    [audioItems, downloadedIds],
+  )
+
+  // 戻り値オブジェクトの参照を安定させ、これをpropsとして受け取る
+  // 画面側（Library等）が不要に再レンダリングされないようにする。
+  return useMemo(
+    () => ({
+      isSupported,
+      isReady,
+      autoDownload,
+      downloadedIds,
+      downloadingIds,
+      errorIds,
+      downloadedCount,
+      totalCount: audioItems.length,
+      toggleDownload,
+      setAutoDownload,
+    }),
+    [
+      isSupported,
+      isReady,
+      autoDownload,
+      downloadedIds,
+      downloadingIds,
+      errorIds,
+      downloadedCount,
+      audioItems.length,
+      toggleDownload,
+      setAutoDownload,
+    ],
+  )
 }
 
 export type OfflineMediaController = ReturnType<

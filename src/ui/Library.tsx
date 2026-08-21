@@ -1,4 +1,11 @@
-import { useLayoutEffect, useRef, useState } from "react"
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react"
 import type { CSSProperties, PointerEvent } from "react"
 import { Check, Download, ListPlus, LoaderCircle } from "lucide-react"
 
@@ -46,7 +53,7 @@ function unlockNativeSelection() {
   window.getSelection()?.removeAllRanges()
 }
 
-export function Library({
+export const Library = memo(function Library({
   items,
   currentAudioId,
   currentVideoId,
@@ -55,6 +62,22 @@ export function Library({
   onPlayNext,
 }: Props) {
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null)
+  const { toggleDownload } = offline
+
+  // MediaRowへ渡す関数参照を安定させ、曲一覧の再生中の
+  // 不要な再レンダリングを防ぐ（各行でinline関数を作らない）。
+  const handleToggleDownload = useCallback(
+    (item: MediaItem) => void toggleDownload(item),
+    [toggleDownload],
+  )
+
+  const handlePlayNext = useCallback(() => {
+    if (!detailItem) return
+    onPlayNext(detailItem)
+    setDetailItem(null)
+  }, [detailItem, onPlayNext])
+
+  const closeDetail = useCallback(() => setDetailItem(null), [])
 
   return (
     <>
@@ -72,9 +95,9 @@ export function Library({
             isDownloading={offline.downloadingIds.has(item.id)}
             hasDownloadError={offline.errorIds.has(item.id)}
             canDownload={offline.isSupported && item.type === "audio"}
-            onPlay={() => onPlay(item)}
-            onToggleDownload={() => void offline.toggleDownload(item)}
-            onShowDetail={() => setDetailItem(item)}
+            onPlay={onPlay}
+            onToggleDownload={handleToggleDownload}
+            onShowDetail={setDetailItem}
           />
         ))}
       </div>
@@ -85,18 +108,15 @@ export function Library({
           showPlayNext={detailItem.type === "audio"}
           canPlayNext={Boolean(currentAudioId)}
           hasMiniPlayer={Boolean(currentAudioId)}
-          onPlayNext={() => {
-            onPlayNext(detailItem)
-            setDetailItem(null)
-          }}
-          onClose={() => setDetailItem(null)}
+          onPlayNext={handlePlayNext}
+          onClose={closeDetail}
         />
       )}
     </>
   )
-}
+})
 
-function MediaRow({
+const MediaRow = memo(function MediaRow({
   item,
   isPlaying,
   isDownloaded,
@@ -113,9 +133,9 @@ function MediaRow({
   isDownloading: boolean
   hasDownloadError: boolean
   canDownload: boolean
-  onPlay: () => void
-  onToggleDownload: () => void
-  onShowDetail: () => void
+  onPlay: (item: MediaItem) => void
+  onToggleDownload: (item: MediaItem) => void
+  onShowDetail: (item: MediaItem) => void
 }) {
   const timerRef = useRef<number | null>(null)
   const startPointRef = useRef<{ x: number; y: number } | null>(null)
@@ -130,6 +150,12 @@ function MediaRow({
     unlockNativeSelection()
   }
 
+  // 長押しタイマーが発火する前にこの行がアンマウントされた場合
+  // （曲一覧の絞り込み変更など）、タイマーと選択ロックを確実に解除する。
+  useEffect(() => {
+    return () => clearPress()
+  }, [])
+
   const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     didLongPressRef.current = false
     startPointRef.current = { x: event.clientX, y: event.clientY }
@@ -141,7 +167,7 @@ function MediaRow({
     timerRef.current = window.setTimeout(() => {
       didLongPressRef.current = true
       window.getSelection()?.removeAllRanges()
-      onShowDetail()
+      onShowDetail(item)
 
       // Detail Sheetが表示されたら一時的な全体ロックは解除する。
       // 楽曲行自体のCSSロックは残るので、文字選択は再発しない。
@@ -185,7 +211,7 @@ function MediaRow({
             didLongPressRef.current = false
             return
           }
-          onPlay()
+          onPlay(item)
         }}
         onContextMenu={(event) => event.preventDefault()}
         onDragStart={(event) => event.preventDefault()}
@@ -200,7 +226,7 @@ function MediaRow({
           aria-label={downloadLabel}
           title={downloadLabel}
           disabled={isDownloading}
-          onClick={onToggleDownload}
+          onClick={() => onToggleDownload(item)}
         >
           {isDownloading ? (
             <LoaderCircle
@@ -217,7 +243,7 @@ function MediaRow({
       )}
     </div>
   )
-}
+})
 
 function DetailSheet({
   item,

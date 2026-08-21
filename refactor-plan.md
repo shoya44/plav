@@ -1,11 +1,16 @@
 # Plav 改善プラン (refactor-plan.md)
 
-作成日: 2026-08-21
-対象: リポジトリ全体スキャンに基づくレビュー結果（コード修正はまだ未実施）
+作成日: 2026-08-21 / 更新日: 2026-08-21
+対象: リポジトリ全体スキャンに基づくレビュー結果
 
 このドキュメントはコードを実際に変更する前の調査・提案フェーズの成果物です。
 各項目に現状評価・具体的な問題点（ファイル:行）・改善案・優先度をまとめています。
-内容を確認いただいた後、Phase単位で実際の修正（Git Patch）を指示してください。
+内容を確認いただいた後、Phase単位で実際の修正を進めます。
+
+## 進捗
+
+- **[対応済み]** 「1. プレイヤーとしてのパフォーマンス・UX改善」のうち (a)(b)(c)(d) を実装済み（`src/audio.ts` / `src/video.ts` / `src/offline.ts` / `src/App.tsx` / `src/ui/Library.tsx`）。詳細は各項目の `[対応済み]` 表記と本ファイル末尾の「Phase 1 実施結果」を参照。
+- (e) の実機での `backdrop-filter` 負荷確認、および 2〜4章の項目は未着手。
 
 ---
 
@@ -52,13 +57,15 @@
 iPhone Safariでは `backdrop-filter` はGPU負荷が高く、ドラッグ/アニメーション中の要素に重ねてかかっていると体感カクつきの原因になりやすい。今回のスキャンでは実機計測はできていないため「要実機確認」項目として記載する。ドラッグ中だけ `backdrop-filter` を無効化する、またはブラー半径を下げるなどの対処を検討候補とする。
 
 ### 改善案（優先度）
-| 優先度 | 内容 |
-|---|---|
-| 高 | `useAudioPlayer` / `useVideoPlayer` の全ハンドラを `useCallback` 化し、戻り値オブジェクトを `useMemo` でまとめる |
-| 高 | `Library.tsx` の長押しタイマーにアンマウントクリーンアップを追加（バグ修正） |
-| 中 | `MediaRow` を `React.memo` 化し、`Library` 側の再レンダリングコストを削減 |
-| 中 | `App.tsx` の `filteredItems` を `useMemo` 化 |
-| 低 | iPhone12 Pro実機でドラッグ中の `backdrop-filter` コストを確認し、必要なら軽量化 |
+| 優先度 | 内容 | 状態 |
+|---|---|---|
+| 高 | `useAudioPlayer` / `useVideoPlayer` の全ハンドラを `useCallback` 化し、戻り値オブジェクトを `useMemo` でまとめる | **[対応済み]** `src/audio.ts`, `src/video.ts` |
+| 高 | `Library.tsx` の長押しタイマーにアンマウントクリーンアップを追加（バグ修正） | **[対応済み]** `src/ui/Library.tsx` |
+| 中 | `MediaRow` を `React.memo` 化し、`Library` 側の再レンダリングコストを削減 | **[対応済み]** `src/ui/Library.tsx`（`Library`本体もmemo化。併せて`onPlay`/`onToggleDownload`/`onShowDetail`を各行のinline関数からLibrary側の安定した関数参照に変更し、memo化が実際に効くようにした） |
+| 中 | `App.tsx` の `filteredItems` を `useMemo` 化 | **[対応済み]** `src/App.tsx`（併せて`playMedia`/`openPage`/Libraryへ渡すハンドラも`useCallback`化） |
+| 低 | iPhone12 Pro実機でドラッグ中の `backdrop-filter` コストを確認し、必要なら軽量化 | 未着手（実機計測が必要なため次フェーズ） |
+
+> 上記(a)〜(d)の対応に伴い、`src/offline.ts`（`useOfflineMedia`の戻り値）も同様に`useMemo`で参照を安定化した。`Library`が受け取る`offline` propもLibraryの再レンダリング抑止に必要な変更のため、範囲を広げて対応済み。
 
 ---
 
@@ -192,14 +199,15 @@ function useIdSet(initial: Set<string> = new Set()) {
 
 一度に全ファイルを書き換えず、以下のようにパッチ単位で分割して進めることを提案します（README記載のGit Patch運用に合わせています）。
 
-- **Phase 1（低リスク・即着手可）**
-  - `src/vite-env.d.ts` 追加（3-a）
-  - `Library.tsx` 長押しタイマーのアンマウントクリーンアップ追加（1-d, バグ修正）
-  - `App.tsx` の `filteredItems` を `useMemo` 化（1-c）
+- **Phase 1（低リスク・即着手可）** ✅ 完了（1章分のみ。3-aは3章対応時に着手）
+  - ~~`src/vite-env.d.ts` 追加（3-a）~~ → 3章のタイミングで対応予定
+  - [x] `Library.tsx` 長押しタイマーのアンマウントクリーンアップ追加（1-d, バグ修正）
+  - [x] `App.tsx` の `filteredItems` を `useMemo` 化（1-c）
 
-- **Phase 2（再レンダリング対策）**
-  - `useAudioPlayer` / `useVideoPlayer` の `useCallback` / `useMemo` 化（1-a）
-  - `MediaRow` の `React.memo` 化（1-b）
+- **Phase 2（再レンダリング対策）** ✅ 完了
+  - [x] `useAudioPlayer` / `useVideoPlayer` の `useCallback` / `useMemo` 化（1-a）
+  - [x] `MediaRow` の `React.memo` 化（1-b、Library本体のmemo化・propsのinline関数解消も含む）
+  - [x] 副次対応: `useOfflineMedia` の戻り値も `useMemo` で安定化（1-a/1-bの効果を実際に発揮させるために必要だったため範囲に追加）
 
 - **Phase 3（重複解消・Hook切り出し）**
   - `SeekBar` コンポーネント抽出（4-a）
@@ -214,6 +222,23 @@ function useIdSet(initial: Set<string> = new Set()) {
   - `backdrop-filter` の実機パフォーマンス確認（1-e）
 
 各Phaseの完了後に `npm run typecheck` / `npm run lint` / `npm run build` を実行し、実機（iPhone12 Pro Safari / Chrome, PWA）でHome・Mini Player・Player Sheet・Queue並び替え・Video再生の一連の操作を確認する想定です。
+
+---
+
+## Phase 1 実施結果（1. パフォーマンス・UX改善）
+
+変更ファイル: `src/audio.ts`, `src/video.ts`, `src/offline.ts`, `src/App.tsx`, `src/ui/Library.tsx`
+
+- `useAudioPlayer` / `useVideoPlayer` の全公開関数（内部で使う依存関数も含む）を `useCallback` 化し、戻り値オブジェクトを `useMemo` でまとめた。関数の参照は関連するstate（`currentItem` / `history` / `upNext` / `isRepeat` / `duration` / `seekPreviewTime`）が変化したときだけ変わり、`currentTime` の更新（再生中は高頻度）では変わらないようにした。
+- `useOfflineMedia` の戻り値も同様に `useMemo` で安定化（`Library` の `offline` propを安定させるために必要だったため対応範囲に含めた）。
+- `App.tsx` の `filteredItems` を `useMemo` 化し、`playMedia` / `openPage` / Libraryへ渡す `onPlay` ハンドラを `useCallback` 化した。
+- `Library` / `MediaRow` を `React.memo` 化。あわせて `MediaRow` が受け取る `onPlay` / `onToggleDownload` / `onShowDetail` を「行ごとのinline関数」から「`item` を引数に取る安定した関数参照」に変更し、`React.memo` が実際に効くようにした（inlineのままでは`memo`だけ付けても効果がないため）。
+- `Library.tsx` の `MediaRow` に、長押しタイマー用のアンマウントクリーンアップ（`useEffect` cleanup）を追加し、タイマー・選択ロックの後始末漏れを修正した（バグ修正）。
+- `oxlint` の `react-hooks(exhaustive-deps)` 警告（`video.close` 等のメンバー式を依存配列に直接書いたことによる誤検知）は、該当する関数を先に分割代入してローカル変数化することで解消し、新規の警告は0件（`npx oxlint src worker` の警告数は変更前後で21件のまま、内容の増減なし）。
+
+検証: 各ファイル編集後に `npx tsc --noEmit` を実行しコンパイルエラーがないことを確認。最終的に `npm run build`（`tsc --noEmit && vite build`）も成功を確認済み。実機（iPhone12 Pro Safari/Chrome, PWA）での動作確認は別途実施が必要。
+
+未対応（次フェーズ）: (e) `backdrop-filter` の実機負荷確認。
 
 ---
 

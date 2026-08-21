@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 
 import { getDisplayTitle, type MediaItem } from "./media"
 import { getCachedMediaObjectUrl } from "./offline"
@@ -51,7 +51,7 @@ export function useAudioPlayer(items: MediaItem[]) {
   const [duration, setDuration] = useState(0)
   const [isRepeat, setIsRepeat] = useState(false)
 
-  const updateMediaSessionPosition = () => {
+  const updateMediaSessionPosition = useCallback(() => {
     if (!hasMediaSession()) return
 
     const audio = audioRef.current
@@ -79,9 +79,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     } catch {
       // Safari等で一時的にposition stateを受け付けない場合は無視する。
     }
-  }
+  }, [])
 
-  const startAudioItem = async (item: MediaItem) => {
+  const startAudioItem = useCallback(async (item: MediaItem) => {
     if (item.type !== "audio" || !item.url) {
       console.log("再生できるURLがありません:", item.title)
       return
@@ -140,10 +140,10 @@ export function useAudioPlayer(items: MediaItem[]) {
     } catch (error) {
       console.error("音楽の再生に失敗しました:", error)
     }
-  }
+  }, [])
 
   // Libraryから選んだ時点で、新しいPlayback sessionを開始する。
-  const playItem = async (item: MediaItem) => {
+  const playItem = useCallback(async (item: MediaItem) => {
     const startIndex = playableAudioItems.findIndex(
       (audioItem) => audioItem.id === item.id
     )
@@ -157,9 +157,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     setUpNext(playableAudioItems.slice(startIndex + 1))
 
     await startAudioItem(playableAudioItems[startIndex])
-  }
+  }, [playableAudioItems, startAudioItem])
 
-  const togglePlay = async () => {
+  const togglePlay = useCallback(async () => {
     const audio = audioRef.current
     if (!audio || !currentItem) return
 
@@ -173,26 +173,26 @@ export function useAudioPlayer(items: MediaItem[]) {
     }
 
     audio.pause()
-  }
+  }, [currentItem])
 
-  const pause = () => {
+  const pause = useCallback(() => {
     audioRef.current?.pause()
-  }
+  }, [])
 
-  const normalizeSeekTime = (time: number) => {
+  const normalizeSeekTime = useCallback((time: number) => {
     if (!Number.isFinite(time)) return 0
 
     const max = duration > 0 ? duration : Number.POSITIVE_INFINITY
     return Math.min(Math.max(time, 0), max)
-  }
+  }, [duration])
 
   // Rangeをドラッグ中は表示だけ動かし、R2への実Seekは指を離した時に1回だけ行う。
   // iPhoneでドラッグ中に大量のRange requestを発生させないため。
-  const previewSeek = (time: number) => {
+  const previewSeek = useCallback((time: number) => {
     setSeekPreviewTime(normalizeSeekTime(time))
-  }
+  }, [normalizeSeekTime])
 
-  const commitSeek = (time?: number) => {
+  const commitSeek = useCallback((time?: number) => {
     const audio = audioRef.current
     if (!audio) return
 
@@ -204,17 +204,17 @@ export function useAudioPlayer(items: MediaItem[]) {
     setCurrentTime(target)
     setSeekPreviewTime(null)
     updateMediaSessionPosition()
-  }
+  }, [normalizeSeekTime, seekPreviewTime, updateMediaSessionPosition])
 
-  const cancelSeek = () => {
+  const cancelSeek = useCallback(() => {
     setSeekPreviewTime(null)
-  }
+  }, [])
 
-  const seekTo = (time: number) => {
+  const seekTo = useCallback((time: number) => {
     commitSeek(time)
-  }
+  }, [commitSeek])
 
-  const playNext = async () => {
+  const playNext = useCallback(async () => {
     if (!currentItem) return
 
     const nextItem = upNext[0]
@@ -244,16 +244,16 @@ export function useAudioPlayer(items: MediaItem[]) {
     }
 
     setIsPlaying(false)
-  }
+  }, [currentItem, upNext, isRepeat, history, startAudioItem])
 
   // Lock ScreenのPreviousは3秒ルールを使わず、必ず前の曲へ移動する。
-  const playPreviousTrack = async () => {
+  const playPreviousTrack = useCallback(async () => {
     if (!currentItem) return
 
     const previousItem = history.at(-1)
 
     if (!previousItem) {
-      seekTo(0)
+      commitSeek(0)
       return
     }
 
@@ -261,9 +261,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     setUpNext((currentUpNext) => [currentItem, ...currentUpNext])
 
     await startAudioItem(previousItem)
-  }
+  }, [currentItem, history, commitSeek, startAudioItem])
 
-  const playPrevious = async () => {
+  const playPrevious = useCallback(async () => {
     if (!currentItem) return
 
     const audio = audioRef.current
@@ -271,15 +271,15 @@ export function useAudioPlayer(items: MediaItem[]) {
 
     // アプリUIでは一般的なPlayerと同様、3秒以上なら曲頭へ戻す。
     if (audio.currentTime > 3) {
-      seekTo(0)
+      commitSeek(0)
       return
     }
 
     await playPreviousTrack()
-  }
+  }, [currentItem, commitSeek, playPreviousTrack])
 
   // 再生済みの曲をTapしたとき、その時点までPlaybackを巻き戻す。
-  const playHistoryItem = async (historyIndex: number) => {
+  const playHistoryItem = useCallback(async (historyIndex: number) => {
     if (!currentItem) return
 
     const targetItem = history[historyIndex]
@@ -295,10 +295,10 @@ export function useAudioPlayer(items: MediaItem[]) {
     ])
 
     await startAudioItem(targetItem)
-  }
+  }, [currentItem, history, upNext, startAudioItem])
 
   // Up Nextの曲をTapすると、その曲を今すぐ再生する。
-  const playUpNextItem = async (itemId: MediaItem["id"]) => {
+  const playUpNextItem = useCallback(async (itemId: MediaItem["id"]) => {
     if (!currentItem) return
 
     const targetIndex = upNext.findIndex((item) => item.id === itemId)
@@ -317,10 +317,10 @@ export function useAudioPlayer(items: MediaItem[]) {
     ])
 
     await startAudioItem(targetItem)
-  }
+  }, [currentItem, upNext, startAudioItem])
 
   // HomeのShuffle AllはLibrary全体をランダム化し、先頭から再生する。
-  const shuffleAll = async () => {
+  const shuffleAll = useCallback(async () => {
     if (playableAudioItems.length === 0) return
 
     const shuffledItems = shuffleItems(playableAudioItems)
@@ -332,17 +332,17 @@ export function useAudioPlayer(items: MediaItem[]) {
     setUpNext(shuffledItems.slice(1))
 
     await startAudioItem(firstItem)
-  }
+  }, [playableAudioItems, startAudioItem])
 
   // Player SheetのShuffleは、再生済みと現在曲を変えずUp Nextだけ並び替える。
-  const shuffleUpcoming = () => {
+  const shuffleUpcoming = useCallback(() => {
     setUpNext((currentUpNext) => shuffleItems(currentUpNext))
-  }
+  }, [])
 
   // Homeの長押しメニューから、任意のAudioを次の1曲へ設定する。
   // 現在曲も指定でき、その場合は現在曲をもう1回だけ次に再生する。
   // 既にUp Nextにある場合も一度取り除いて先頭へ移す。
-  const queueItemNext = (item: MediaItem) => {
+  const queueItemNext = useCallback((item: MediaItem) => {
     if (
       !currentItem ||
       item.type !== "audio" ||
@@ -357,10 +357,10 @@ export function useAudioPlayer(items: MediaItem[]) {
         (upNextItem) => upNextItem.id !== item.id
       ),
     ])
-  }
+  }, [currentItem])
 
   // Drag reorderはUp Next内だけで完結する。
-  const moveUpNextItem = (fromIndex: number, toIndex: number) => {
+  const moveUpNextItem = useCallback((fromIndex: number, toIndex: number) => {
     if (fromIndex === toIndex) return
 
     setUpNext((currentUpNext) => {
@@ -379,16 +379,16 @@ export function useAudioPlayer(items: MediaItem[]) {
       nextUpNext.splice(toIndex, 0, movedItem)
       return nextUpNext
     })
-  }
+  }, [])
 
-  const handleLoadedMetadata = (seconds: number) => {
+  const handleLoadedMetadata = useCallback((seconds: number) => {
     setDuration(seconds)
     updateMediaSessionPosition()
-  }
+  }, [updateMediaSessionPosition])
 
-  const toggleRepeat = () => {
+  const toggleRepeat = useCallback(() => {
     setIsRepeat((value) => !value)
-  }
+  }, [])
 
   useEffect(() => {
     return () => {
@@ -461,7 +461,7 @@ export function useAudioPlayer(items: MediaItem[]) {
 
     setHandler("seekto", (details) => {
       if (typeof details.seekTime === "number") {
-        seekTo(details.seekTime)
+        commitSeek(details.seekTime)
       }
     })
 
@@ -478,70 +478,110 @@ export function useAudioPlayer(items: MediaItem[]) {
       setHandler("nexttrack", null)
       setHandler("seekto", null)
     }
-  }, [currentItem, history, upNext, isRepeat])
+  }, [currentItem, playPreviousTrack, playNext, commitSeek, updateMediaSessionPosition])
 
-  const handlePlay = () => {
+  const handlePlay = useCallback(() => {
     setIsPlaying(true)
 
     if (hasMediaSession()) {
       navigator.mediaSession.playbackState = "playing"
     }
-  }
+  }, [])
 
-  const handlePause = () => {
+  const handlePause = useCallback(() => {
     setIsPlaying(false)
 
     if (hasMediaSession()) {
       navigator.mediaSession.playbackState = "paused"
     }
-  }
+  }, [])
 
-  const handleTimeUpdate = (time: number) => {
+  const handleTimeUpdate = useCallback((time: number) => {
     // ドラッグ中はRangeのつまみをaudio timeupdateで引き戻さない。
     if (seekPreviewTime === null) {
       setCurrentTime(time)
     }
     updateMediaSessionPosition()
-  }
+  }, [seekPreviewTime, updateMediaSessionPosition])
+
+  const handleEnded = useCallback(() => {
+    void playNext()
+  }, [playNext])
 
   const displayTime = seekPreviewTime ?? currentTime
 
-  return {
-    audioRef,
+  // 戻り値オブジェクトの参照を安定させ、Player Sheet等の子コンポーネントが
+  // 再生位置の更新以外で不要に再レンダリングされないようにする。
+  return useMemo(
+    () => ({
+      audioRef,
 
-    history,
-    currentItem,
-    upNext,
-    isPlaying,
-    currentTime,
-    displayTime,
-    duration,
-    isRepeat,
+      history,
+      currentItem,
+      upNext,
+      isPlaying,
+      currentTime,
+      displayTime,
+      duration,
+      isRepeat,
 
-    playItem,
-    togglePlay,
-    pause,
-    seekTo,
-    previewSeek,
-    commitSeek,
-    cancelSeek,
-    playNext,
-    playPrevious,
-    playPreviousTrack,
-    playHistoryItem,
-    playUpNextItem,
-    shuffleAll,
-    shuffleUpcoming,
-    queueItemNext,
-    moveUpNextItem,
-    toggleRepeat,
+      playItem,
+      togglePlay,
+      pause,
+      seekTo,
+      previewSeek,
+      commitSeek,
+      cancelSeek,
+      playNext,
+      playPrevious,
+      playPreviousTrack,
+      playHistoryItem,
+      playUpNextItem,
+      shuffleAll,
+      shuffleUpcoming,
+      queueItemNext,
+      moveUpNextItem,
+      toggleRepeat,
 
-    handlePlay,
-    handlePause,
-    handleTimeUpdate,
-    handleLoadedMetadata,
-    handleEnded: () => void playNext(),
-  }
+      handlePlay,
+      handlePause,
+      handleTimeUpdate,
+      handleLoadedMetadata,
+      handleEnded,
+    }),
+    [
+      history,
+      currentItem,
+      upNext,
+      isPlaying,
+      currentTime,
+      displayTime,
+      duration,
+      isRepeat,
+      playItem,
+      togglePlay,
+      pause,
+      seekTo,
+      previewSeek,
+      commitSeek,
+      cancelSeek,
+      playNext,
+      playPrevious,
+      playPreviousTrack,
+      playHistoryItem,
+      playUpNextItem,
+      shuffleAll,
+      shuffleUpcoming,
+      queueItemNext,
+      moveUpNextItem,
+      toggleRepeat,
+      handlePlay,
+      handlePause,
+      handleTimeUpdate,
+      handleLoadedMetadata,
+      handleEnded,
+    ],
+  )
 }
 
 export type AudioPlayerController = ReturnType<typeof useAudioPlayer>

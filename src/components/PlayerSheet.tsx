@@ -1,5 +1,5 @@
-import { useRef } from "react"
-import type { CSSProperties } from "react"
+import { useRef, useState } from "react"
+import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
 import {
   Pause,
   Play,
@@ -25,8 +25,15 @@ export function PlayerSheet({
   player,
   onClose,
 }: Props) {
-  const touchStartYRef =
-    useRef<number | null>(null)
+  const sheetRef = useRef<HTMLElement | null>(null)
+  const activePointerIdRef = useRef<number | null>(null)
+  const dragStartYRef = useRef(0)
+  const dragStartTimeRef = useRef(0)
+  const closingRef = useRef(false)
+
+  const [dragY, setDragY] = useState(0)
+  const [isDragging, setIsDragging] = useState(false)
+  const [isClosing, setIsClosing] = useState(false)
 
   const {
     currentItem,
@@ -48,38 +55,157 @@ export function PlayerSheet({
       ? (currentTime / duration) * 100
       : 0
 
+  const closeWithAnimation = () => {
+    if (closingRef.current) {
+      return
+    }
+
+    closingRef.current = true
+    setIsDragging(false)
+    setIsClosing(true)
+
+    const sheetHeight =
+      sheetRef.current?.getBoundingClientRect().height ?? 420
+
+    setDragY(sheetHeight + 32)
+
+    const reduceMotion =
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
+
+    window.setTimeout(
+      onClose,
+      reduceMotion ? 0 : 180,
+    )
+  }
+
+  const handlePointerDown = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (
+      closingRef.current ||
+      (event.pointerType === "mouse" && event.button !== 0)
+    ) {
+      return
+    }
+
+    activePointerIdRef.current = event.pointerId
+    dragStartYRef.current = event.clientY
+    dragStartTimeRef.current = performance.now()
+    setDragY(0)
+    setIsDragging(true)
+
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
+
+  const handlePointerMove = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (activePointerIdRef.current !== event.pointerId) {
+      return
+    }
+
+    const distance = Math.max(
+      0,
+      event.clientY - dragStartYRef.current,
+    )
+
+    setDragY(distance)
+  }
+
+  const finishPointerDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (activePointerIdRef.current !== event.pointerId) {
+      return
+    }
+
+    const distance = Math.max(
+      0,
+      event.clientY - dragStartYRef.current,
+    )
+
+    const elapsed = Math.max(
+      performance.now() - dragStartTimeRef.current,
+      1,
+    )
+
+    const velocity = distance / elapsed
+
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    activePointerIdRef.current = null
+    setIsDragging(false)
+
+    const shouldClose =
+      distance >= 72 ||
+      (distance >= 24 && velocity >= 0.55)
+
+    if (shouldClose) {
+      closeWithAnimation()
+      return
+    }
+
+    setDragY(0)
+  }
+
+  const cancelPointerDrag = (
+    event: ReactPointerEvent<HTMLDivElement>,
+  ) => {
+    if (activePointerIdRef.current !== event.pointerId) {
+      return
+    }
+
+    activePointerIdRef.current = null
+    setIsDragging(false)
+    setDragY(0)
+  }
+
+  const backdropOpacity = Math.max(
+    0,
+    1 - dragY / 240,
+  )
+
+  const sheetStyle = {
+    "--player-sheet-drag-y": `${dragY}px`,
+  } as CSSProperties
+
   return (
     <>
       <div
-        className="sheet-backdrop player-backdrop"
-        onClick={onClose}
+        className={`sheet-backdrop player-backdrop${
+          isDragging ? " is-dragging" : ""
+        }${isClosing ? " is-closing" : ""}`}
+        style={{ opacity: backdropOpacity }}
+        onClick={closeWithAnimation}
       />
 
-      <section className="bottom-sheet player-sheet">
+      <section
+        ref={sheetRef}
+        className={`bottom-sheet player-sheet${
+          isDragging ? " is-dragging" : ""
+        }${isClosing ? " is-closing" : ""}`}
+        style={sheetStyle}
+      >
         <div
-          className="sheet-handle player-handle"
-          onTouchStart={(event) => {
-            touchStartYRef.current =
-              event.touches[0].clientY
-          }}
-          onTouchEnd={(event) => {
-            if (
-              touchStartYRef.current === null
-            ) {
-              return
+          className="player-sheet-drag-area"
+          role="button"
+          tabIndex={0}
+          aria-label="プレイヤーを閉じる"
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={finishPointerDrag}
+          onPointerCancel={cancelPointerDrag}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault()
+              closeWithAnimation()
             }
-
-            const distance =
-              event.changedTouches[0].clientY -
-              touchStartYRef.current
-
-            if (distance > 32) {
-              onClose()
-            }
-
-            touchStartYRef.current = null
           }}
-        />
+        >
+          <div className="sheet-handle player-handle" />
+        </div>
 
         <div className="player-sheet-title">
           {getDisplayTitle(

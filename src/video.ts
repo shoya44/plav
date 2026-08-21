@@ -21,17 +21,6 @@ export function useVideoPlayer() {
   const [duration, setDuration] =
     useState(0)
 
-  const [volume, setVolume] =
-    useState(1)
-
-  const [isMuted, setIsMuted] =
-    useState(false)
-
-  const [
-    canAdjustVolume,
-    setCanAdjustVolume,
-  ] = useState(false)
-
   const playItem = async (
     item: MediaItem
   ) => {
@@ -149,101 +138,6 @@ export function useVideoPlayer() {
     )
   }
 
-  /*
-    iPhone SafariではWeb側から音量を細かく変更できない場合がある。
-    実際にvolumeを書き換えて反映されるかを確認し、
-    対応ブラウザだけSliderを表示する。
-  */
-  const detectVolumeSupport = () => {
-    const video =
-      videoRef.current
-
-    if (!video) return
-
-    const originalVolume =
-      video.volume
-
-    const testVolume =
-      originalVolume === 0.5
-        ? 0.35
-        : 0.5
-
-    try {
-      video.volume =
-        testVolume
-
-      const supported =
-        Math.abs(
-          video.volume -
-            testVolume
-        ) < 0.01
-
-      video.volume =
-        originalVolume
-
-      setCanAdjustVolume(
-        supported
-      )
-    } catch {
-      setCanAdjustVolume(
-        false
-      )
-    }
-  }
-
-  const setVolumeLevel = (
-    nextVolume: number
-  ) => {
-    const video =
-      videoRef.current
-
-    if (!video) return
-
-    const normalized =
-      Math.min(
-        Math.max(
-          nextVolume,
-          0
-        ),
-        1
-      )
-
-    try {
-      video.volume =
-        normalized
-
-      setVolume(
-        video.volume
-      )
-
-      if (
-        normalized > 0 &&
-        video.muted
-      ) {
-        video.muted = false
-        setIsMuted(false)
-      }
-    } catch {
-      setCanAdjustVolume(
-        false
-      )
-    }
-  }
-
-  const toggleMute = () => {
-    const video =
-      videoRef.current
-
-    if (!video) return
-
-    video.muted =
-      !video.muted
-
-    setIsMuted(
-      video.muted
-    )
-  }
-
   const close = () => {
     const video =
       videoRef.current
@@ -296,38 +190,7 @@ export function useVideoPlayer() {
     seconds: number
   ) => {
     setDuration(seconds)
-
-    const video =
-      videoRef.current
-
-    if (video) {
-      setVolume(
-        video.volume
-      )
-
-      setIsMuted(
-        video.muted
-      )
-    }
-
-    detectVolumeSupport()
   }
-
-  const handleVolumeChange =
-    () => {
-      const video =
-        videoRef.current
-
-      if (!video) return
-
-      setVolume(
-        video.volume
-      )
-
-      setIsMuted(
-        video.muted
-      )
-    }
 
   return {
     videoRef,
@@ -337,17 +200,10 @@ export function useVideoPlayer() {
     currentTime,
     duration,
 
-    volume,
-    isMuted,
-    canAdjustVolume,
-
     playItem,
     togglePlay,
     seekTo,
     skipBy,
-
-    setVolumeLevel,
-    toggleMute,
 
     close,
     enterFullscreen,
@@ -364,7 +220,6 @@ export function useVideoPlayer() {
       setCurrentTime(time),
 
     handleLoadedMetadata,
-    handleVolumeChange,
 
     handleEnded: () =>
       setIsPlaying(false),

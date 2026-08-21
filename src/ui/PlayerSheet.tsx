@@ -11,8 +11,6 @@ import {
   Shuffle,
   SkipBack,
   SkipForward,
-  Volume2,
-  VolumeX,
 } from "lucide-react"
 
 import type { AudioPlayerController } from "../audio"
@@ -58,8 +56,6 @@ export function PlayerSheet({ player, onClose }: Props) {
     duration,
     isPlaying,
     isRepeat,
-    volume,
-    isMuted,
   } = player
 
   const measureSnapHeights = (): SnapHeights => {
@@ -387,40 +383,6 @@ export function PlayerSheet({ player, onClose }: Props) {
               <span>{formatTime(displayTime)}</span>
               <span>{formatTime(duration)}</span>
             </div>
-          </div>
-
-          <div className="player-sheet-volume">
-            <button
-              className="player-sheet-volume-button"
-              type="button"
-              aria-label={isMuted ? "ミュート解除" : "ミュート"}
-              onClick={player.toggleMute}
-            >
-              {isMuted ? (
-                <VolumeX size={18} strokeWidth={1.8} />
-              ) : (
-                <Volume2 size={18} strokeWidth={1.8} />
-              )}
-            </button>
-
-            <input
-              className="player-sheet-volume-slider"
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={isMuted ? 0 : volume}
-              aria-label="音量"
-              onInput={(event) =>
-                player.setVolumeLevel(Number(event.currentTarget.value))
-              }
-            />
-            <Volume2
-              className="player-sheet-volume-end"
-              size={17}
-              strokeWidth={1.6}
-              aria-hidden="true"
-            />
           </div>
 
           <div className="player-sheet-controls">

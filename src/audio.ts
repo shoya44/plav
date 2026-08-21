@@ -47,10 +47,6 @@ export function useAudioPlayer(items: MediaItem[]) {
   const [duration, setDuration] = useState(0)
   const [isRepeat, setIsRepeat] = useState(false)
 
-  const [volume, setVolume] = useState(1)
-  const [isMuted, setIsMuted] = useState(false)
-  const [canAdjustVolume] = useState(true)
-
   const updateMediaSessionPosition = () => {
     if (!hasMediaSession()) return
 
@@ -342,64 +338,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     })
   }
 
-  const setVolumeLevel = (nextVolume: number) => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    const normalized = Math.min(
-      Math.max(nextVolume, 0),
-      1
-    )
-
-    // UI上の値は常に追従させる。
-    // Desktopではaudio.volumeへ反映される。
-    // iPhone Safari/PWAはOS仕様上、0〜1のsoftware volumeを変更できないため、
-    // 0だけmuteとして扱い、それ以外は端末音量を維持する。
-    setVolume(normalized)
-
-    if (normalized === 0) {
-      audio.muted = true
-      setIsMuted(true)
-      return
-    }
-
-    if (audio.muted) {
-      audio.muted = false
-      setIsMuted(false)
-    }
-
-    try {
-      audio.volume = normalized
-    } catch {
-      // iPhone等でvolume setterが効かなくてもUIは維持する。
-    }
-  }
-
-  const toggleMute = () => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    audio.muted = !audio.muted
-    setIsMuted(audio.muted)
-  }
-
   const handleLoadedMetadata = (seconds: number) => {
     setDuration(seconds)
-
-    const audio = audioRef.current
-
-    if (audio) {
-      setIsMuted(audio.muted)
-    }
-
     updateMediaSessionPosition()
-  }
-
-  const handleVolumeChange = () => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    setIsMuted(audio.muted)
   }
 
   const toggleRepeat = () => {
@@ -526,10 +467,6 @@ export function useAudioPlayer(items: MediaItem[]) {
     duration,
     isRepeat,
 
-    volume,
-    isMuted,
-    canAdjustVolume,
-
     playItem,
     togglePlay,
     pause,
@@ -548,14 +485,10 @@ export function useAudioPlayer(items: MediaItem[]) {
     moveUpNextItem,
     toggleRepeat,
 
-    setVolumeLevel,
-    toggleMute,
-
     handlePlay,
     handlePause,
     handleTimeUpdate,
     handleLoadedMetadata,
-    handleVolumeChange,
     handleEnded: () => void playNext(),
   }
 }

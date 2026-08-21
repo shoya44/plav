@@ -6,8 +6,6 @@ import {
   Play,
   RotateCcw,
   RotateCw,
-  Volume2,
-  VolumeX,
 } from "lucide-react"
 
 import type { VideoPlayerController } from "../video"
@@ -31,9 +29,6 @@ export function VideoPlayer({
     currentTime,
     duration,
     isPlaying,
-    volume,
-    isMuted,
-    canAdjustVolume,
   } = player
 
   const isOpen =
@@ -117,9 +112,6 @@ export function VideoPlayer({
                 event.currentTarget.duration
               )
             }
-            onVolumeChange={
-              player.handleVolumeChange
-            }
             onEnded={player.handleEnded}
           />
 
@@ -169,67 +161,6 @@ export function VideoPlayer({
                 {formatTime(duration)}
               </span>
             </div>
-          </div>
-
-          <div className="video-volume">
-            <button
-              className="video-volume-button"
-              type="button"
-              aria-label={
-                isMuted
-                  ? "ミュート解除"
-                  : "ミュート"
-              }
-              onClick={player.toggleMute}
-            >
-              {isMuted ? (
-                <VolumeX
-                  size={16}
-                  strokeWidth={1.8}
-                />
-              ) : (
-                <Volume2
-                  size={16}
-                  strokeWidth={1.8}
-                />
-              )}
-            </button>
-
-            {canAdjustVolume ? (
-              <>
-                <input
-                  className="video-volume-slider"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={
-                    isMuted
-                      ? 0
-                      : volume
-                  }
-                  aria-label="音量"
-                  onChange={(event) =>
-                    player.setVolumeLevel(
-                      Number(
-                        event.currentTarget.value
-                      )
-                    )
-                  }
-                />
-
-                <Volume2
-                  className="video-volume-end"
-                  size={15}
-                  strokeWidth={1.6}
-                  aria-hidden="true"
-                />
-              </>
-            ) : (
-              <div className="video-volume-system">
-                Device volume
-              </div>
-            )}
           </div>
 
           <div className="video-controls">

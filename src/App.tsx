@@ -12,6 +12,9 @@ import { VideoPlayer } from "./ui/VideoPlayer"
 
 type Page = "home" | "settings"
 
+const APP_VERSION =
+  import.meta.env.VITE_APP_VERSION ?? "dev"
+
 export default function App() {
   const [page, setPage] = useState<Page>("home")
   const [mediaType, setMediaType] = useState<MediaType>("audio")
@@ -76,12 +79,14 @@ export default function App() {
         onLoadedMetadata={(event) =>
           audio.handleLoadedMetadata(event.currentTarget.duration)
         }
-        onVolumeChange={audio.handleVolumeChange}
         onEnded={audio.handleEnded}
       />
 
       <header className="app-header">
         <div className="app-logo" aria-label="Plav" />
+        <span className="app-version">
+          v{APP_VERSION}
+        </span>
       </header>
 
       {page === "home" ? (
@@ -114,7 +119,7 @@ export default function App() {
           />
         </main>
       ) : (
-        <SettingsView />
+        <SettingsView version={APP_VERSION} />
       )}
 
       {showShuffle && (

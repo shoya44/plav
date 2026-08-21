@@ -111,6 +111,7 @@ src/
 ├─ cloud.ts
 ├─ main.tsx
 ├─ ui/
+├─ hooks/
 └─ styles/
 
 worker/
@@ -999,6 +1000,7 @@ src/styles/app.css
 
 ```text
 src/ui/Library.tsx
+src/hooks/useLongPress.ts
 LONG_PRESS_MS
 MOVE_CANCEL_PX
 ```
@@ -1041,6 +1043,7 @@ HOLD_CANCEL_DISTANCE
 
 ```text
 src/audio.ts
+src/ui/SeekBar.tsx
 src/ui/PlayerSheet.tsx
 src/ui/CollapsedPlayer.tsx
 src/styles/player.css

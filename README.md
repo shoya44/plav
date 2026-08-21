@@ -172,8 +172,13 @@ plav/
 │  │  ├─ CollapsedPlayer.tsx  # Mini Player
 │  │  ├─ PlayerSheet.tsx      # Audio Player Sheet
 │  │  ├─ PlaybackQueue.tsx    # History / Current / Up Next / Drag reorder
+│  │  ├─ SeekBar.tsx          # Mini Player / Player Sheet共通のSeekバー
 │  │  ├─ Settings.tsx         # Settings
 │  │  └─ VideoPlayer.tsx      # Video UI
+│  │
+│  ├─ hooks/
+│  │  ├─ useLongPress.ts      # 長押し判定（Library.tsx）
+│  │  └─ useSwipeToClose.ts   # 下スワイプで閉じる（VideoPlayer.tsx / Library.tsx）
 │  │
 │  └─ styles/
 │     ├─ app.css              # App / Home / Library / Settings / Nav
@@ -203,6 +208,7 @@ plav/
 - App composition → `App.tsx`
 - State / domain logic → `audio.ts`, `video.ts`, `offline.ts`, `cloud.ts`
 - UI behavior → `src/ui/`
+- 複数のUIで共通するジェスチャー判定 → `src/hooks/`（`useLongPress` / `useSwipeToClose` 等）
 - CSS → `app.css`, `player.css` の2ファイル
 - Backend routing → `worker/index.ts`
 - Backend responsibilities → `tracks.ts`, `media.ts`, `storage.ts`
@@ -343,12 +349,12 @@ Plavは既存のSupabase Project / R2 Bucketを利用します。
 |---|---|
 | Header / Nav / Home layout | `src/App.tsx`, `src/styles/app.css` |
 | Homeの曲一覧 | `src/ui/Library.tsx`, `src/styles/app.css` |
-| 長押し / Play next | `src/ui/Library.tsx`, `src/audio.ts` |
+| 長押し / Play next | `src/ui/Library.tsx`, `src/hooks/useLongPress.ts`, `src/audio.ts` |
 | Download表示 | `src/ui/Library.tsx`, `src/offline.ts`, `src/styles/app.css` |
-| Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/styles/player.css` |
-| Player Sheet | `src/ui/PlayerSheet.tsx`, `src/styles/player.css` |
+| Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
+| Player Sheet | `src/ui/PlayerSheet.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
 | Queue / 並び替え | `src/ui/PlaybackQueue.tsx`, `src/audio.ts`, `src/styles/player.css` |
-| Seek / Next / Previous / Repeat / Shuffle | `src/audio.ts`, `src/ui/PlayerSheet.tsx` |
+| Seek / Next / Previous / Repeat / Shuffle | `src/audio.ts`, `src/ui/SeekBar.tsx`, `src/ui/PlayerSheet.tsx` |
 | Settings | `src/ui/Settings.tsx`, `src/styles/app.css` |
 | Local Cache | `src/offline.ts` |
 | R2容量表示 | `src/cloud.ts`, `src/ui/Settings.tsx`, `worker/storage.ts` |

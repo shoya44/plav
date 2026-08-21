@@ -1,6 +1,5 @@
 import { useLayoutEffect, useRef, useState } from "react"
 import type {
-  CSSProperties,
   MouseEvent as ReactMouseEvent,
   PointerEvent as ReactPointerEvent,
 } from "react"
@@ -16,6 +15,7 @@ import {
 import type { AudioPlayerController } from "../audio"
 import { formatTime, getDisplayTitle } from "../media"
 import { PlaybackQueue } from "./PlaybackQueue"
+import { SeekBar } from "./SeekBar"
 
 type Props = {
   player: AudioPlayerController
@@ -114,9 +114,6 @@ export function PlayerSheet({ player, onClose }: Props) {
   }, [currentItem?.id, snap])
 
   if (!currentItem) return null
-
-  const progress =
-    duration > 0 ? (displayTime / duration) * 100 : 0
 
   const closeWithAnimation = () => {
     if (closingRef.current) return
@@ -296,10 +293,6 @@ export function PlayerSheet({ player, onClose }: Props) {
     event.stopPropagation()
   }
 
-  const commitSeek = (value: string) => {
-    player.commitSeek(Number(value))
-  }
-
   return (
     <>
       <div
@@ -350,33 +343,12 @@ export function PlayerSheet({ player, onClose }: Props) {
 
         <div className="player-sheet-lower">
           <div className="player-sheet-progress-area">
-            <input
+            <SeekBar
               className="player-sheet-progress"
-              type="range"
-              min="0"
-              max={duration || 0}
-              step="0.1"
               value={displayTime}
-              aria-label="再生位置"
-              style={{ "--progress": progress } as CSSProperties}
-              onInput={(event) =>
-                player.previewSeek(Number(event.currentTarget.value))
-              }
-              onPointerUp={(event) =>
-                commitSeek(event.currentTarget.value)
-              }
-              onPointerCancel={(event) =>
-                commitSeek(event.currentTarget.value)
-              }
-              onTouchEnd={(event) =>
-                commitSeek(event.currentTarget.value)
-              }
-              onKeyUp={(event) =>
-                commitSeek(event.currentTarget.value)
-              }
-              onBlur={(event) =>
-                commitSeek(event.currentTarget.value)
-              }
+              max={duration || 0}
+              onPreview={player.previewSeek}
+              onCommit={player.commitSeek}
             />
 
             <div className="player-sheet-time">

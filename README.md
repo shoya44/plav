@@ -3,7 +3,8 @@
 Plav は、iPhone / PWA を主対象とした個人用の軽量メディアプレイヤーです。
 現在の実運用は **Audio中心** で、React/Vite のフロントエンドと Cloudflare Worker API を1つの Worker (`plav`) に統合しています。
 
-- App: `https://plav.take503503.workers.dev/`
+- Repository: `https://github.com/shoya44/plav`
+- Production: `https://plav.take503503.workers.dev/`
 - Current version: `v0.3.5`
 - Frontend: React + TypeScript + Vite
 - Backend: Cloudflare Workers

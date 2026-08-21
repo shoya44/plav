@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import {
   House,
   Music2,
@@ -7,6 +7,7 @@ import {
   Video,
 } from "lucide-react"
 
+import { fetchTracks } from "./api"
 import { CollapsedPlayer } from "./components/CollapsedPlayer"
 import { DetailSheet } from "./components/DetailSheet"
 import { MediaRow } from "./components/MediaRow"
@@ -16,7 +17,6 @@ import { VideoPlayer } from "./components/VideoPlayer"
 import { useAudioPlayer } from "./hooks/useAudioPlayer"
 import { useVideoPlayer } from "./hooks/useVideoPlayer"
 import {
-  mediaItems,
   type MediaItem,
   type MediaType,
 } from "./media"
@@ -27,11 +27,45 @@ type Page = "home" | "settings"
 function App() {
   const [page, setPage] = useState<Page>("home")
   const [mediaType, setMediaType] = useState<MediaType>("audio")
+  const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null)
 
   const audioPlayer = useAudioPlayer(mediaItems)
   const videoPlayer = useVideoPlayer()
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadTracks = async () => {
+      try {
+        const tracks = await fetchTracks()
+
+        if (cancelled) return
+
+        const items: MediaItem[] = tracks.map((track) => ({
+          id: track.id,
+          title: track.title,
+          type: "audio",
+          url: track.mediaUrl,
+          durationSeconds: track.durationSeconds,
+        }))
+
+        setMediaItems(items)
+      } catch (error) {
+        console.error(
+          "曲一覧の取得に失敗しました:",
+          error,
+        )
+      }
+    }
+
+    void loadTracks()
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const filteredItems = mediaItems.filter(
     (item) => item.type === mediaType
@@ -79,7 +113,6 @@ function App() {
 
   return (
     <div className={`app-shell${showCollapsedPlayer ? " has-player" : ""}`}>
-      {/* Audio Playback Engine */}
       <audio
         ref={audioPlayer.audioRef}
         onPlay={audioPlayer.handlePlay}

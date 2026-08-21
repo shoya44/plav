@@ -60,7 +60,6 @@ export function PlayerSheet({ player, onClose }: Props) {
     isRepeat,
     volume,
     isMuted,
-    canAdjustVolume,
   } = player
 
   const measureSnapHeights = (): SnapHeights => {
@@ -206,6 +205,22 @@ export function PlayerSheet({ player, onClose }: Props) {
     }
 
     if (event.cancelable) event.preventDefault()
+
+    // Half状態では「上へ少しスワイプ」で即Expandedへ。
+    // 指を離すまで待たないので、iPhoneでも1回の操作で確実に拡大する。
+    if (startSnapRef.current === "half" && deltaY <= -24) {
+      if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+        event.currentTarget.releasePointerCapture(event.pointerId)
+      }
+
+      resetPointerTracking()
+      snapTo("expanded")
+
+      window.setTimeout(() => {
+        suppressClickRef.current = false
+      }, 0)
+      return
+    }
 
     const heights = snapHeightsRef.current
     const nextHeight = dragStartHeightRef.current - deltaY
@@ -388,32 +403,24 @@ export function PlayerSheet({ player, onClose }: Props) {
               )}
             </button>
 
-            {canAdjustVolume ? (
-              <>
-                <input
-                  className="player-sheet-volume-slider"
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={isMuted ? 0 : volume}
-                  aria-label="音量"
-                  onInput={(event) =>
-                    player.setVolumeLevel(Number(event.currentTarget.value))
-                  }
-                />
-                <Volume2
-                  className="player-sheet-volume-end"
-                  size={17}
-                  strokeWidth={1.6}
-                  aria-hidden="true"
-                />
-              </>
-            ) : (
-              <div className="player-sheet-volume-system">
-                iPhoneの音量ボタンで調整
-              </div>
-            )}
+            <input
+              className="player-sheet-volume-slider"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={isMuted ? 0 : volume}
+              aria-label="音量"
+              onInput={(event) =>
+                player.setVolumeLevel(Number(event.currentTarget.value))
+              }
+            />
+            <Volume2
+              className="player-sheet-volume-end"
+              size={17}
+              strokeWidth={1.6}
+              aria-hidden="true"
+            />
           </div>
 
           <div className="player-sheet-controls">

@@ -24,14 +24,6 @@ function hasMediaSession() {
   )
 }
 
-function isIOSFamily() {
-  if (typeof navigator === "undefined") return false
-
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-  )
-}
 
 export function useAudioPlayer(items: MediaItem[]) {
   const audioRef = useRef<HTMLAudioElement>(null)
@@ -57,7 +49,7 @@ export function useAudioPlayer(items: MediaItem[]) {
 
   const [volume, setVolume] = useState(1)
   const [isMuted, setIsMuted] = useState(false)
-  const [canAdjustVolume, setCanAdjustVolume] = useState(false)
+  const [canAdjustVolume] = useState(true)
 
   const updateMediaSessionPosition = () => {
     if (!hasMediaSession()) return
@@ -350,33 +342,6 @@ export function useAudioPlayer(items: MediaItem[]) {
     })
   }
 
-  const detectVolumeSupport = () => {
-    const audio = audioRef.current
-    if (!audio) return
-
-    // iOS Safari / PWAではHTMLMediaElement.volumeが見かけ上変更できても
-    // 実際の端末音量へ反映されないため、アプリ内Volume UIを出さない。
-    if (isIOSFamily()) {
-      setCanAdjustVolume(false)
-      return
-    }
-
-    const originalVolume = audio.volume
-    const testVolume = originalVolume === 0.5 ? 0.35 : 0.5
-
-    try {
-      audio.volume = testVolume
-
-      const supported =
-        Math.abs(audio.volume - testVolume) < 0.01
-
-      audio.volume = originalVolume
-      setCanAdjustVolume(supported)
-    } catch {
-      setCanAdjustVolume(false)
-    }
-  }
-
   const setVolumeLevel = (nextVolume: number) => {
     const audio = audioRef.current
     if (!audio) return
@@ -386,16 +351,27 @@ export function useAudioPlayer(items: MediaItem[]) {
       1
     )
 
+    // UI上の値は常に追従させる。
+    // Desktopではaudio.volumeへ反映される。
+    // iPhone Safari/PWAはOS仕様上、0〜1のsoftware volumeを変更できないため、
+    // 0だけmuteとして扱い、それ以外は端末音量を維持する。
+    setVolume(normalized)
+
+    if (normalized === 0) {
+      audio.muted = true
+      setIsMuted(true)
+      return
+    }
+
+    if (audio.muted) {
+      audio.muted = false
+      setIsMuted(false)
+    }
+
     try {
       audio.volume = normalized
-      setVolume(audio.volume)
-
-      if (normalized > 0 && audio.muted) {
-        audio.muted = false
-        setIsMuted(false)
-      }
     } catch {
-      setCanAdjustVolume(false)
+      // iPhone等でvolume setterが効かなくてもUIは維持する。
     }
   }
 
@@ -413,11 +389,9 @@ export function useAudioPlayer(items: MediaItem[]) {
     const audio = audioRef.current
 
     if (audio) {
-      setVolume(audio.volume)
       setIsMuted(audio.muted)
     }
 
-    detectVolumeSupport()
     updateMediaSessionPosition()
   }
 
@@ -425,7 +399,6 @@ export function useAudioPlayer(items: MediaItem[]) {
     const audio = audioRef.current
     if (!audio) return
 
-    setVolume(audio.volume)
     setIsMuted(audio.muted)
   }
 

@@ -63,7 +63,7 @@ export function CollapsedPlayer({ player, onOpen }: Props) {
     const upward = start.y - event.clientY
 
     // PointerUpを待たず、明確な上スワイプを検出した時点で開く。
-    if (upward >= 18 && upward > Math.abs(deltaX) * 1.1) {
+    if (upward >= 14 && upward > Math.abs(deltaX) * 0.9) {
       swipeStartRef.current = null
       onOpen()
     }

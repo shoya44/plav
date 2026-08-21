@@ -104,6 +104,7 @@
 
   text-align: left;
   cursor: pointer;
+  touch-action: none;
   z-index: 1;
 }
 
@@ -559,9 +560,15 @@
   Half中は上スワイプをSheet拡大へ使う。
   Expanded後はQueueの通常スクロールを有効にする。
 */
+.player-sheet.snap-half .player-sheet-drag-area,
+.player-sheet.snap-half .player-sheet-title,
+.player-sheet.snap-half .player-sheet-queue,
+.player-sheet.snap-half .player-sheet-queue-scroll {
+  touch-action: none;
+}
+
 .player-sheet.snap-half .player-sheet-queue-scroll {
   overflow-y: hidden;
-  touch-action: none;
 }
 
 .player-sheet.snap-expanded .player-sheet-queue-scroll {
@@ -773,15 +780,6 @@
   color: var(--player-muted);
 }
 
-.player-sheet-volume-system {
-  grid-column: 2 / 4;
-
-  color: var(--text-secondary);
-  font-size: 10px;
-  font-weight: 400;
-  letter-spacing: 0.01em;
-  text-align: center;
-}
 
 /* ---------- Bottom Controls ---------- */
 
@@ -1290,9 +1288,3 @@
   touch-action: pan-y;
 }
 
-.player-sheet-volume-system {
-  min-height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}

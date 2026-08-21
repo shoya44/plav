@@ -1,12 +1,56 @@
-import { useState } from "react"
+import { useCallback, useEffect, useState } from "react"
+
+import {
+  fetchCloudStorageUsage,
+  formatStorage,
+  type CloudStorageUsage,
+} from "../cloud"
+import type { OfflineMediaController } from "../offline"
 
 type Props = {
   version: string
+  offline: OfflineMediaController
 }
 
-export function Settings({ version }: Props) {
+function getStorageStatus(percent: number) {
+  if (percent >= 100) return "Over limit"
+  if (percent >= 80) return "Near limit"
+  return "OK"
+}
+
+function getStorageTone(percent: number) {
+  if (percent >= 100) return " danger"
+  if (percent >= 80) return " warning"
+  return ""
+}
+
+export function Settings({ version, offline }: Props) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [updateError, setUpdateError] = useState("")
+  const [cloudUsage, setCloudUsage] =
+    useState<CloudStorageUsage | null>(null)
+  const [isCloudLoading, setIsCloudLoading] = useState(false)
+  const [cloudError, setCloudError] = useState("")
+
+  const loadCloudUsage = useCallback(async (force = false) => {
+    if (isCloudLoading) return
+
+    setIsCloudLoading(true)
+    setCloudError("")
+
+    try {
+      setCloudUsage(await fetchCloudStorageUsage(force))
+    } catch (error) {
+      console.error("クラウド容量の取得に失敗しました:", error)
+      setCloudError("Unavailable")
+    } finally {
+      setIsCloudLoading(false)
+    }
+  }, [isCloudLoading])
+
+  useEffect(() => {
+    void loadCloudUsage()
+  }, [])
 
   const updateToLatest = async () => {
     if (isUpdating) return
@@ -21,8 +65,7 @@ export function Settings({ version }: Props) {
         Date.now().toString(),
       )
 
-      // 同じURLのHTTPキャッシュを避け、最新index.htmlが取得できることを
-      // 確認してからPWA全体を再読込する。
+      // Cache Storageの保存曲は消さず、最新index.htmlだけをno-storeで確認する。
       const response = await fetch(updateUrl, {
         cache: "no-store",
       })
@@ -33,21 +76,6 @@ export function Settings({ version }: Props) {
         )
       }
 
-      // 将来Service Workerを追加した場合にも古いCache Storageを
-      // 引きずらないよう、利用可能な環境だけ削除する。
-      if ("caches" in window) {
-        try {
-          const cacheNames = await window.caches.keys()
-          await Promise.all(
-            cacheNames.map((name) =>
-              window.caches.delete(name),
-            ),
-          )
-        } catch {
-          // iOSの設定等でCache APIが使えない場合は無視する。
-        }
-      }
-
       window.location.replace(updateUrl.toString())
     } catch (error) {
       console.error("Plavの更新確認に失敗しました:", error)
@@ -55,6 +83,9 @@ export function Settings({ version }: Props) {
       setIsUpdating(false)
     }
   }
+
+  const cloudPercent = cloudUsage?.usagePercent ?? 0
+  const cloudTone = getStorageTone(cloudPercent)
 
   return (
     <main className="settings-content">
@@ -96,6 +127,108 @@ export function Settings({ version }: Props) {
             </span>
           </div>
         </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="settings-section-title">
+          Downloads
+        </h2>
+
+        <div className="settings-group">
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Auto save
+            </span>
+
+            <button
+              className={`settings-switch${offline.autoDownload ? " active" : ""}`}
+              type="button"
+              role="switch"
+              aria-checked={offline.autoDownload}
+              aria-label="Auto save"
+              disabled={!offline.isSupported}
+              onClick={() =>
+                offline.setAutoDownload(!offline.autoDownload)
+              }
+            >
+              <span className="settings-switch-knob" />
+            </button>
+          </div>
+
+          <div className="settings-divider" />
+
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Saved
+            </span>
+
+            <span className="settings-row-value">
+              {offline.isSupported
+                ? `${offline.downloadedCount} / ${offline.totalCount}`
+                : "Unavailable"}
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section className="settings-section">
+        <h2 className="settings-section-title">
+          Cloud
+        </h2>
+
+        <div className="settings-group">
+          <button
+            className="settings-cloud-row"
+            type="button"
+            disabled={isCloudLoading}
+            onClick={() => void loadCloudUsage(true)}
+          >
+            <span className="settings-row-label">
+              R2 storage
+            </span>
+
+            <span className={`settings-cloud-value${cloudTone}`}>
+              {isCloudLoading && !cloudUsage
+                ? "Checking..."
+                : cloudError
+                  ? cloudError
+                  : cloudUsage
+                    ? `${formatStorage(cloudUsage.usedBytes)} / ${formatStorage(cloudUsage.freeTierBytes)}`
+                    : "—"}
+            </span>
+          </button>
+
+          {cloudUsage && (
+            <>
+              <div className="settings-storage-meter-wrap">
+                <div className="settings-storage-meter">
+                  <span
+                    className={`settings-storage-meter-fill${cloudTone}`}
+                    style={{
+                      width: `${Math.min(
+                        Math.max(cloudPercent, 0),
+                        100,
+                      )}%`,
+                    }}
+                  />
+                </div>
+
+                <div className="settings-storage-meta">
+                  <span>
+                    {cloudPercent.toFixed(1)}% · {getStorageStatus(cloudPercent)}
+                  </span>
+                  <span>
+                    {cloudUsage.objectCount} files
+                  </span>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+
+        <p className="settings-storage-note">
+          Current R2 snapshot. Tap to refresh. Free tier reference: 10 GB-month (Standard).
+        </p>
       </section>
 
       <section className="settings-section">

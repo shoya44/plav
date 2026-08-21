@@ -17,6 +17,12 @@
     "SUPABASE_URL": "https://duxsquqvqaigcxtmsxvv.supabase.co"
   },
 
+  "secrets": {
+    "required": [
+      "SUPABASE_SECRET_KEY"
+    ]
+  },
+
   "r2_buckets": [
     {
       "binding": "AUDIO_BUCKET",

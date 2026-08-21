@@ -39,7 +39,7 @@ async function queryTracks(
   }
 
   const response = await fetch(url, {
-    headers: { apikey: env.SUPABASE_SERVICE_ROLE_KEY },
+    headers: { apikey: env.SUPABASE_SECRET_KEY },
   })
 
   if (!response.ok) {

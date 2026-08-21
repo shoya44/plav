@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react"
 
 import { getDisplayTitle, type MediaItem } from "./media"
+import { getCachedMediaObjectUrl } from "./offline"
 
 function shuffleItems(items: MediaItem[]) {
   const shuffled = [...items]
@@ -27,6 +28,9 @@ function hasMediaSession() {
 
 export function useAudioPlayer(items: MediaItem[]) {
   const audioRef = useRef<HTMLAudioElement>(null)
+  const cachedObjectUrlRef = useRef<string | null>(null)
+  const sourceItemIdRef = useRef<string | null>(null)
+  const sourceRequestIdRef = useRef(0)
 
   const playableAudioItems = useMemo(
     () =>
@@ -88,13 +92,48 @@ export function useAudioPlayer(items: MediaItem[]) {
 
     setCurrentItem(item)
 
-    const nextUrl = new URL(item.url, window.location.href).href
-
-    if (audio.src !== nextUrl) {
-      audio.src = item.url
-      setCurrentTime(0)
-      setDuration(0)
+    // 同じ曲を再生中なら、Blob URLを作り直さずそのまま再生する。
+    if (sourceItemIdRef.current === item.id && audio.src) {
+      try {
+        await audio.play()
+      } catch (error) {
+        console.error("音楽の再生に失敗しました:", error)
+      }
+      return
     }
+
+    const requestId = sourceRequestIdRef.current + 1
+    sourceRequestIdRef.current = requestId
+
+    let cachedObjectUrl: string | null = null
+
+    try {
+      cachedObjectUrl = await getCachedMediaObjectUrl(item.id)
+    } catch (error) {
+      console.error("ローカル保存曲の読み込みに失敗しました:", error)
+    }
+
+    // 別の曲が先に選ばれていた場合は、この結果を捨てる。
+    if (sourceRequestIdRef.current !== requestId) {
+      if (cachedObjectUrl) URL.revokeObjectURL(cachedObjectUrl)
+      return
+    }
+
+    if (cachedObjectUrlRef.current) {
+      URL.revokeObjectURL(cachedObjectUrlRef.current)
+      cachedObjectUrlRef.current = null
+    }
+
+    if (cachedObjectUrl) {
+      cachedObjectUrlRef.current = cachedObjectUrl
+      audio.src = cachedObjectUrl
+    } else {
+      audio.src = item.url
+    }
+
+    sourceItemIdRef.current = item.id
+    setCurrentTime(0)
+    setDuration(0)
 
     try {
       await audio.play()
@@ -300,20 +339,24 @@ export function useAudioPlayer(items: MediaItem[]) {
     setUpNext((currentUpNext) => shuffleItems(currentUpNext))
   }
 
-  const moveItemToNext = (itemId: MediaItem["id"]) => {
-    setUpNext((currentUpNext) => {
-      const fromIndex = currentUpNext.findIndex(
-        (item) => item.id === itemId
-      )
+  // Homeの長押しメニューから、任意のAudioを次の1曲へ設定する。
+  // 現在曲も指定でき、その場合は現在曲をもう1回だけ次に再生する。
+  // 既にUp Nextにある場合も一度取り除いて先頭へ移す。
+  const queueItemNext = (item: MediaItem) => {
+    if (
+      !currentItem ||
+      item.type !== "audio" ||
+      !item.url
+    ) {
+      return
+    }
 
-      if (fromIndex <= 0) return currentUpNext
-
-      const nextUpNext = [...currentUpNext]
-      const [movedItem] = nextUpNext.splice(fromIndex, 1)
-
-      nextUpNext.unshift(movedItem)
-      return nextUpNext
-    })
+    setUpNext((currentUpNext) => [
+      item,
+      ...currentUpNext.filter(
+        (upNextItem) => upNextItem.id !== item.id
+      ),
+    ])
   }
 
   // Drag reorderはUp Next内だけで完結する。
@@ -346,6 +389,14 @@ export function useAudioPlayer(items: MediaItem[]) {
   const toggleRepeat = () => {
     setIsRepeat((value) => !value)
   }
+
+  useEffect(() => {
+    return () => {
+      if (cachedObjectUrlRef.current) {
+        URL.revokeObjectURL(cachedObjectUrlRef.current)
+      }
+    }
+  }, [])
 
   // iOS Safari / PWA のLock Screen / Control Center。
   useEffect(() => {
@@ -481,7 +532,7 @@ export function useAudioPlayer(items: MediaItem[]) {
     playUpNextItem,
     shuffleAll,
     shuffleUpcoming,
-    moveItemToNext,
+    queueItemNext,
     moveUpNextItem,
     toggleRepeat,
 

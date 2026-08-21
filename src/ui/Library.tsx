@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef, useState } from "react"
 import type { CSSProperties, PointerEvent } from "react"
+import { Check, Download, ListPlus, LoaderCircle } from "lucide-react"
 
+import type { OfflineMediaController } from "../offline"
 import {
   getDisplayTitle,
   getFileExtension,
@@ -11,17 +13,46 @@ type Props = {
   items: MediaItem[]
   currentAudioId?: string
   currentVideoId?: string
+  offline: OfflineMediaController
   onPlay: (item: MediaItem) => void
+  onPlayNext: (item: MediaItem) => void
 }
 
 const LONG_PRESS_MS = 450
 const MOVE_CANCEL_PX = 10
+const SELECTION_LOCK_CLASS = "plav-long-press-lock"
+
+let selectionLockActive = false
+
+function preventNativeSelection(event: Event) {
+  event.preventDefault()
+}
+
+function lockNativeSelection() {
+  if (selectionLockActive) return
+
+  selectionLockActive = true
+  document.documentElement.classList.add(SELECTION_LOCK_CLASS)
+  document.addEventListener("selectstart", preventNativeSelection, true)
+  window.getSelection()?.removeAllRanges()
+}
+
+function unlockNativeSelection() {
+  if (!selectionLockActive) return
+
+  selectionLockActive = false
+  document.documentElement.classList.remove(SELECTION_LOCK_CLASS)
+  document.removeEventListener("selectstart", preventNativeSelection, true)
+  window.getSelection()?.removeAllRanges()
+}
 
 export function Library({
   items,
   currentAudioId,
   currentVideoId,
+  offline,
   onPlay,
+  onPlayNext,
 }: Props) {
   const [detailItem, setDetailItem] = useState<MediaItem | null>(null)
 
@@ -37,7 +68,12 @@ export function Library({
                 ? currentAudioId === item.id
                 : currentVideoId === item.id
             }
+            isDownloaded={offline.downloadedIds.has(item.id)}
+            isDownloading={offline.downloadingIds.has(item.id)}
+            hasDownloadError={offline.errorIds.has(item.id)}
+            canDownload={offline.isSupported && item.type === "audio"}
             onPlay={() => onPlay(item)}
+            onToggleDownload={() => void offline.toggleDownload(item)}
             onShowDetail={() => setDetailItem(item)}
           />
         ))}
@@ -46,6 +82,13 @@ export function Library({
       {detailItem && (
         <DetailSheet
           item={detailItem}
+          showPlayNext={detailItem.type === "audio"}
+          canPlayNext={Boolean(currentAudioId)}
+          hasMiniPlayer={Boolean(currentAudioId)}
+          onPlayNext={() => {
+            onPlayNext(detailItem)
+            setDetailItem(null)
+          }}
           onClose={() => setDetailItem(null)}
         />
       )}
@@ -56,12 +99,22 @@ export function Library({
 function MediaRow({
   item,
   isPlaying,
+  isDownloaded,
+  isDownloading,
+  hasDownloadError,
+  canDownload,
   onPlay,
+  onToggleDownload,
   onShowDetail,
 }: {
   item: MediaItem
   isPlaying: boolean
+  isDownloaded: boolean
+  isDownloading: boolean
+  hasDownloadError: boolean
+  canDownload: boolean
   onPlay: () => void
+  onToggleDownload: () => void
   onShowDetail: () => void
 }) {
   const timerRef = useRef<number | null>(null)
@@ -74,15 +127,25 @@ function MediaRow({
       timerRef.current = null
     }
     startPointRef.current = null
+    unlockNativeSelection()
   }
 
   const handlePointerDown = (event: PointerEvent<HTMLButtonElement>) => {
     didLongPressRef.current = false
     startPointRef.current = { x: event.clientX, y: event.clientY }
 
+    // iOS Safariの長押し文字選択を、押した瞬間から一時的に無効化する。
+    // スクロールへ移行した場合や指を離した場合はclearPressで即解除する。
+    lockNativeSelection()
+
     timerRef.current = window.setTimeout(() => {
       didLongPressRef.current = true
+      window.getSelection()?.removeAllRanges()
       onShowDetail()
+
+      // Detail Sheetが表示されたら一時的な全体ロックは解除する。
+      // 楽曲行自体のCSSロックは残るので、文字選択は再発しない。
+      unlockNativeSelection()
     }, LONG_PRESS_MS)
   }
 
@@ -98,34 +161,77 @@ function MediaRow({
     }
   }
 
+  const downloadLabel = isDownloading
+    ? "Downloading"
+    : isDownloaded
+      ? "Remove download"
+      : hasDownloadError
+        ? "Retry download"
+        : "Download"
+
   return (
-    <button
-      className={`media-row${isPlaying ? " playing" : ""}`}
-      type="button"
-      aria-label={item.title}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={clearPress}
-      onPointerCancel={clearPress}
-      onClick={() => {
-        if (didLongPressRef.current) {
-          didLongPressRef.current = false
-          return
-        }
-        onPlay()
-      }}
-      onContextMenu={(event) => event.preventDefault()}
-    >
-      <span className="media-title">{getDisplayTitle(item.title)}</span>
-    </button>
+    <div className={`media-row${isPlaying ? " playing" : ""}`}>
+      <button
+        className="media-row-main"
+        type="button"
+        aria-label={item.title}
+        draggable={false}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={clearPress}
+        onPointerCancel={clearPress}
+        onClick={() => {
+          if (didLongPressRef.current) {
+            didLongPressRef.current = false
+            return
+          }
+          onPlay()
+        }}
+        onContextMenu={(event) => event.preventDefault()}
+        onDragStart={(event) => event.preventDefault()}
+      >
+        <span className="media-title">{getDisplayTitle(item.title)}</span>
+      </button>
+
+      {canDownload && (
+        <button
+          className={`media-download-button${isDownloaded ? " downloaded" : ""}${hasDownloadError ? " error" : ""}`}
+          type="button"
+          aria-label={downloadLabel}
+          title={downloadLabel}
+          disabled={isDownloading}
+          onClick={onToggleDownload}
+        >
+          {isDownloading ? (
+            <LoaderCircle
+              className="media-download-spinner"
+              size={16}
+              strokeWidth={1.8}
+            />
+          ) : isDownloaded ? (
+            <Check size={17} strokeWidth={2} />
+          ) : (
+            <Download size={16} strokeWidth={1.8} />
+          )}
+        </button>
+      )}
+    </div>
   )
 }
 
 function DetailSheet({
   item,
+  showPlayNext,
+  canPlayNext,
+  hasMiniPlayer,
+  onPlayNext,
   onClose,
 }: {
   item: MediaItem
+  showPlayNext: boolean
+  canPlayNext: boolean
+  hasMiniPlayer: boolean
+  onPlayNext: () => void
   onClose: () => void
 }) {
   const touchStartYRef = useRef<number | null>(null)
@@ -158,7 +264,7 @@ function DetailSheet({
       />
 
       <section
-        className="bottom-sheet detail-sheet"
+        className={`bottom-sheet detail-sheet${hasMiniPlayer ? " has-mini-player" : ""}`}
         role="dialog"
         aria-modal="true"
         aria-label="Media details"
@@ -189,6 +295,25 @@ function DetailSheet({
           <span>{item.type === "audio" ? "Audio" : "Video"}</span>
           {extension && <span>{extension}</span>}
         </div>
+
+        {showPlayNext && (
+          <button
+            className="detail-play-next"
+            type="button"
+            disabled={!canPlayNext}
+            aria-disabled={!canPlayNext}
+            onClick={onPlayNext}
+          >
+            <ListPlus size={17} strokeWidth={1.8} />
+            <span>Play next</span>
+          </button>
+        )}
+
+        {showPlayNext && !canPlayNext && (
+          <div className="detail-play-next-note">
+            Start a track first
+          </div>
+        )}
       </section>
     </>
   )

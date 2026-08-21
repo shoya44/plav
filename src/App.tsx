@@ -3,6 +3,7 @@ import { House, Music2, Settings, Shuffle, Video } from "lucide-react"
 
 import { useAudioPlayer } from "./audio"
 import { fetchTracks, type MediaItem, type MediaType } from "./media"
+import { useOfflineMedia } from "./offline"
 import { useVideoPlayer } from "./video"
 import { CollapsedPlayer } from "./ui/CollapsedPlayer"
 import { Library } from "./ui/Library"
@@ -21,6 +22,7 @@ export default function App() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([])
   const [isPlayerOpen, setIsPlayerOpen] = useState(false)
 
+  const offline = useOfflineMedia(mediaItems)
   const audio = useAudioPlayer(mediaItems)
   const video = useVideoPlayer()
 
@@ -115,11 +117,16 @@ export default function App() {
             items={filteredItems}
             currentAudioId={audio.currentItem?.id}
             currentVideoId={video.currentItem?.id}
+            offline={offline}
             onPlay={(item) => void playMedia(item)}
+            onPlayNext={(item) => audio.queueItemNext(item)}
           />
         </main>
       ) : (
-        <SettingsView version={APP_VERSION} />
+        <SettingsView
+          version={APP_VERSION}
+          offline={offline}
+        />
       )}
 
       {showShuffle && (

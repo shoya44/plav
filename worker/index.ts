@@ -1,5 +1,6 @@
 import { listTracks } from "./tracks"
 import { streamTrack } from "./media"
+import { getStorageUsage } from "./storage"
 
 export type R2ObjectBody = {
   body: ReadableStream<Uint8Array>
@@ -9,15 +10,29 @@ export type R2ObjectBody = {
   writeHttpMetadata(headers: Headers): void
 }
 
+export type R2ListedObject = {
+  size: number
+}
+
+export type R2ListResult = {
+  objects: R2ListedObject[]
+  truncated: boolean
+  cursor?: string
+}
+
 export type Env = {
   PLAV_OWNER_ID: string
   SUPABASE_URL: string
-  SUPABASE_SERVICE_ROLE_KEY: string
+  SUPABASE_SECRET_KEY: string
   AUDIO_BUCKET: {
     get(
       key: string,
       options?: { range?: { offset: number; length: number } },
     ): Promise<R2ObjectBody | null>
+    list(options?: {
+      cursor?: string
+      limit?: number
+    }): Promise<R2ListResult>
   }
 }
 
@@ -34,6 +49,10 @@ async function handleApi(request: Request, env: Env) {
 
   if (request.method === "GET" && url.pathname === "/api/tracks") {
     return listTracks(env)
+  }
+
+  if (request.method === "GET" && url.pathname === "/api/storage") {
+    return getStorageUsage(env)
   }
 
   const mediaMatch = url.pathname.match(/^\/api\/media\/([^/]+)$/)

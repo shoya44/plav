@@ -13,7 +13,9 @@
 - **[対応済み]** Phase 3（重複解消・Hook切り出し）のうち、`SeekBar` 抽出・`useSwipeToClose` 抽出・`Library.tsx`への`useLongPress`適用・`offline.ts`のSet操作ヘルパー化を実装済み。詳細は「Phase 3 実施結果」を参照。
 - **[スコープ見直し]** `PlaybackQueue.tsx`への`useLongPress`適用は、想定より大きな構造変更が必要と判明したため保留（理由は「Phase 3 実施結果」参照）。ただし別アプローチとして、Phase 4で`useQueueReorder`フックへのロジック全体移動は完了。
 - **[対応済み]** Phase 4のうち、`PlaybackQueue.tsx`の`useQueueReorder`化、`PlayerSheet.tsx`の`useDraggableSheet`化、CSSカスタムプロパティ型ヘルパー（`cssVars`）導入を実装済み。詳細は「Phase 4 実施結果」を参照。
-- (e) の実機での `backdrop-filter` 負荷確認のみ、実機が必要なため未着手（後述）。
+- **[対応済み]** 「3. TypeScriptの型安全性の向上」の`src/vite-env.d.ts`追加も完了。`import.meta.env`の未宣言キーが今後もコンパイルエラーになるよう`strictImportMetaEnv`を有効化した。
+- **[対応不要（ユーザー判断）]** (1-e) の実機での `backdrop-filter` 負荷確認は、ユーザー判断により今回は実施不要とした。
+- 上記により、`refactor-plan.md`記載の改善案はすべて対応完了（またはユーザー判断により対応不要）となった。全体を通した最終リグレッション確認（Playwright, iPhone12 Pro相当ビューポート）も実施済み。詳細は末尾の「最終リグレッション確認」を参照。
 
 ---
 
@@ -141,10 +143,12 @@ type CSSVarStyle<T extends string> = CSSProperties & Record<`--${T}`, string | n
 のような小さな型ヘルパーを1つ定義し、キャスト箇所を集約すると良い（3章と4章の両方に関わる改善）。
 
 ### 改善案（優先度）
-| 優先度 | 内容 |
-|---|---|
-| 高 | `src/vite-env.d.ts` を追加し `ImportMetaEnv` を明示的に型付け（`any` 排除、影響範囲が小さく即着手可能） |
-| 低 | CSSカスタムプロパティ用の型ヘルパーを導入し、`as CSSProperties` の重複キャストを整理 |
+| 優先度 | 内容 | 状態 |
+|---|---|---|
+| 高 | `src/vite-env.d.ts` を追加し `ImportMetaEnv` を明示的に型付け（`any` 排除、影響範囲が小さく即着手可能） | **[対応済み]** |
+| 低 | CSSカスタムプロパティ用の型ヘルパーを導入し、`as CSSProperties` の重複キャストを整理 | **[対応済み]**（Phase 4、`src/cssVars.ts`） |
+
+**`src/vite-env.d.ts`の実装内容**: `ImportMetaEnv`に`VITE_APP_VERSION: string`を明示するだけでなく、Viteの`ViteTypeOptions.strictImportMetaEnv`を有効化した。これにより`VITE_APP_VERSION`だけでなく、**今後宣言し忘れた環境変数へのアクセスもコンパイルエラーになる**（`[key: string]: any`のフォールバックが無効化されるため）。実際に未宣言のキーへアクセスするコードを一時的に追加して`npx tsc --noEmit`がエラーを検出することを確認済み（`Property 'X' does not exist on type 'ImportMetaEnv'`）。
 
 ---
 
@@ -202,8 +206,8 @@ function useIdSet(initial: Set<string> = new Set()) {
 
 一度に全ファイルを書き換えず、以下のようにパッチ単位で分割して進めることを提案します（README記載のGit Patch運用に合わせています）。
 
-- **Phase 1（低リスク・即着手可）** ✅ 完了（1章分のみ。3-aは3章対応時に着手）
-  - ~~`src/vite-env.d.ts` 追加（3-a）~~ → 3章のタイミングで対応予定
+- **Phase 1（低リスク・即着手可）** ✅ 完了
+  - [x] `src/vite-env.d.ts` 追加（3-a） — 最後に対応
   - [x] `Library.tsx` 長押しタイマーのアンマウントクリーンアップ追加（1-d, バグ修正）
   - [x] `App.tsx` の `filteredItems` を `useMemo` 化（1-c）
 
@@ -303,11 +307,36 @@ PlayerSheet:
 
 いずれも期待通りに動作し、コンソールエラーは発生しなかった。
 
-**未対応**: (1-e) `backdrop-filter`の実機負荷確認は、実機（iPhone12 Pro）でのGPU/コンポジタ負荷計測が前提のため、このサンドボックス環境では検証できない。コードへの推測での変更（例えばドラッグ中だけ`backdrop-filter`を外す等）は加えていない。実機確認後、必要であれば別途対応する。
+**未対応**: (1-e) `backdrop-filter`の実機負荷確認は、実機（iPhone12 Pro）でのGPU/コンポジタ負荷計測が前提のため、このサンドボックス環境では検証できない。コードへの推測での変更（例えばドラッグ中だけ`backdrop-filter`を外す等）は加えていない。ユーザー判断により今回は対応不要とした。
+
+---
+
+## 3-a 実施結果（`vite-env.d.ts` 追加）
+
+`src/vite-env.d.ts`を追加し、`ImportMetaEnv`に`VITE_APP_VERSION: string`を明示した。あわせてVite標準の`ViteTypeOptions.strictImportMetaEnv`を有効化し、`import.meta.env`の未宣言キーに対する`[key: string]: any`フォールバックを無効化した。これにより、今後誰かが未宣言の環境変数へアクセスするコードを書いた場合もコンパイルエラーで検知できる。
+
+検証: 未宣言キー（`import.meta.env.VITE_NOT_DECLARED`）へアクセスする一時コードを追加し、`npx tsc --noEmit`が`Property 'VITE_NOT_DECLARED' does not exist on type 'ImportMetaEnv'`を実際に検出することを確認した上で削除。`.d.ts`ファイルのみの変更でランタイムコードは生成されないため、実機・ブラウザでの動作確認は不要（後述の最終リグレッション確認でヘッダーのバージョン表示が壊れていないことも確認済み）。
+
+---
+
+## 最終リグレッション確認
+
+Phase 1〜4および3-aの対応がすべて完了した時点で、Dev server + Playwright（iPhone 12 Pro相当ビューポート・タッチ有効、`/api/tracks` `/api/storage`をモック）を用いて、機能横断の通しリグレッションを実施した。
+
+- ヘッダーのバージョン表示が正しい値になっていること（`vite-env.d.ts`追加によるビルド時置換への影響がないこと）
+- Home: 曲一覧のタップ再生 / 長押しでのDetail Sheet表示（誤再生なし）
+- Player Sheet: 開閉、Seek操作、Repeatトグル
+- Up Nextの長押し+ドラッグ並び替え
+- Player Sheetのドラッグ（Half→Expanded→Half→Close の一連の遷移）
+- Settings: 表示、Cloud容量行のタップ更新
+- Audio/Videoタブ切り替え後もMini Playerの再生状態が保持されること
+
+17項目すべて期待通りに動作し、コンソールエラーも0件だった。実際の音声ファイル再生、Video再生、実機（iPhone12 Pro）でのタッチ操作の感触は、本番APIとハードウェアの制約上このサンドボックスでは検証できないため、最終的な確認はブランチプレビューURLでの実機確認をお願いしたい。
 
 ---
 
 ## 確認事項
 
-- Phase 1〜4のいずれも完了（(1-e)を除く）。今後は本ドキュメントに残る項目はない状態。追加のリファクタ候補が見つかった場合は都度この形式で追記する想定。
-- `backdrop-filter` の実機計測（1-e）は実機を用意しての確認が必要。実機で気になる挙動があれば、その内容とあわせて教えていただければ対応する。
+- `refactor-plan.md`記載の改善項目はすべて対応完了、または(1-e)のようにユーザー判断で対応不要とした。現時点で本ドキュメントに残っている未対応項目はない。
+- 実機（iPhone12 Pro Safari / Chrome, PWA）での最終確認をお願いしたい。気になる挙動があれば、その内容を教えていただければ追加で対応する。
+- 追加のリファクタ候補が今後見つかった場合は、都度この形式で追記して進める想定。

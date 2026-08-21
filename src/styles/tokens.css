@@ -1,0 +1,43 @@
+:root {
+  /* ---------- Colors ---------- */
+  --bg: #060a10;
+  --bg-deep: #04070b;
+  --bg-top: #07101b;
+
+  --text: rgba(247, 249, 251, 0.94);
+  --text-strong: #f7f9fb;
+  --text-secondary: rgba(190, 201, 212, 0.62);
+  --muted: #737e8a;
+  --nav-muted: #606b76;
+  --player-muted: #68798a;
+  --accent-bright: #52b7ff;
+  --accent-soft: #5db8ff;
+  --accent-pale: #8ccdff;
+
+  --surface-soft: rgba(255, 255, 255, 0.045);
+  --surface-control-subtle: rgba(255, 255, 255, 0.025);
+
+  --border-soft: rgba(255, 255, 255, 0.035);
+  --border-accent: rgba(82, 183, 255, 0.12);
+  --track: rgba(255, 255, 255, 0.10);
+  --track-soft: rgba(255, 255, 255, 0.07);
+  --overlay: rgba(0, 0, 0, 0.22);
+
+  /* ---------- Radius ---------- */
+  --radius-control: 12px;
+  --radius-player: 15px;
+  --radius-sheet: 24px;
+
+  /* ---------- Layout ---------- */
+  --header-height: 64px;
+  --nav-height: 58px;
+  --mini-player-height: 64px;
+  --mini-player-slot-height: 72px;
+  --page-padding-x: 18px;
+  --sheet-side: 10px;
+  --sheet-bottom-gap: 6px;
+
+  /* ---------- Motion ---------- */
+  --transition-fast: 0.1s ease;
+  --transition-ui: 0.14s ease;
+}

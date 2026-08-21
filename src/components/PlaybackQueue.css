@@ -1,0 +1,218 @@
+/* ---------- Playback Queue ---------- */
+
+.queue-list {
+  min-height: 0;
+}
+
+.queue-row {
+  min-height: 44px;
+
+  border-bottom:
+    1px solid
+    rgba(
+      255,
+      255,
+      255,
+      0.025
+    );
+
+  transition:
+    background
+      var(--transition-fast),
+    opacity
+      var(--transition-fast);
+}
+
+.queue-row:last-child {
+  border-bottom: 0;
+}
+
+.queue-row.dragging {
+  background:
+    rgba(
+      64,
+      156,
+      255,
+      0.075
+    );
+
+  opacity: 0.76;
+}
+
+.queue-row-main {
+  display: grid;
+
+  grid-template-columns:
+    minmax(0, 1fr)
+    auto;
+
+  align-items: center;
+
+  min-height: 44px;
+}
+
+.queue-title-button {
+  display: flex;
+  align-items: center;
+
+  min-width: 0;
+  height: 44px;
+
+  padding:
+    0
+    6px
+    0
+    2px;
+
+  border: 0;
+  background: transparent;
+
+  text-align: left;
+
+  cursor: pointer;
+}
+
+.queue-title {
+  min-width: 0;
+
+  overflow: hidden;
+
+  color:
+    rgba(
+      237,
+      242,
+      247,
+      0.82
+    );
+
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.queue-row-actions {
+  display: flex;
+  align-items: center;
+
+  gap: 1px;
+}
+
+.queue-icon-button,
+.queue-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  width: 34px;
+  height: 38px;
+
+  padding: 0;
+
+  border: 0;
+  background: transparent;
+
+  color:
+    var(--player-muted);
+
+  cursor: pointer;
+}
+
+.queue-icon-button.active,
+.queue-icon-button:active,
+.queue-drag-handle:active {
+  color:
+    var(--accent-bright);
+}
+
+.queue-drag-handle {
+  touch-action: none;
+
+  cursor: grab;
+}
+
+.queue-drag-handle:active {
+  cursor: grabbing;
+}
+
+/*
+  Play next はスクロール領域の外へ浮かせず、
+  行の中に展開する。
+  Queue上端でも切れず、実装もシンプル。
+*/
+
+.queue-inline-actions {
+  display: flex;
+  justify-content: flex-end;
+
+  padding:
+    0
+    36px
+    8px
+    8px;
+}
+
+.queue-play-next {
+  min-height: 30px;
+
+  padding:
+    6px
+    11px;
+
+  border:
+    1px solid
+    var(--border-accent);
+
+  border-radius: 10px;
+
+  background:
+    rgba(
+      64,
+      156,
+      255,
+      0.07
+    );
+
+  color: var(--text);
+
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+
+  cursor: pointer;
+}
+
+.queue-play-next:active {
+  background:
+    rgba(
+      64,
+      156,
+      255,
+      0.13
+    );
+}
+
+.queue-empty {
+  padding:
+    16px
+    2px
+    6px;
+
+  color:
+    var(--text-secondary);
+
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+@media (
+  prefers-reduced-motion:
+  reduce
+) {
+  .queue-row {
+    transition: none;
+  }
+}

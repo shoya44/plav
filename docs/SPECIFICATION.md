@@ -109,7 +109,9 @@ src/
 ├─ media.ts
 ├─ offline.ts
 ├─ cloud.ts
+├─ cssVars.ts
 ├─ main.tsx
+├─ vite-env.d.ts
 ├─ ui/
 ├─ hooks/
 └─ styles/
@@ -143,6 +145,34 @@ worker/
 - Playerの表示条件
 - Page追加
 
+### Audio と Video の結合度
+
+`src/audio.ts`（`useAudioPlayer`）と`src/video.ts`（`useVideoPlayer`）、およびそれぞれの
+UI（`PlayerSheet.tsx`/`CollapsedPlayer.tsx`/`PlaybackQueue.tsx` と `VideoPlayer.tsx`）は
+**互いを一切importしていません**。片方のロジックを変更/拡張しても、もう片方のコードには
+影響しません。
+
+両者が交差するのは`App.tsx`だけです。ここで意図的に以下の排他制御を行っています。
+
+```text
+Video再生開始
+  → pauseAudio()（Audioを一時停止）
+  → Player Sheetを閉じる
+
+Audio再生開始
+  → closeVideo()（Video Playerを閉じる）
+
+表示条件:
+  showCollapsedPlayer = audio.currentItem がある && video.currentItem が無い
+  showShuffle         = Home / Audio tab && Player Sheetを開いていない && video.currentItem が無い
+  Player Sheet        = video.currentItem が無いときだけ表示
+```
+
+これは「同時に2つのメディアが鳴らないようにする」という**意図的なUXポリシー**であり、
+実装が絡み合っているわけではありません。ポリシーの変更点は`App.tsx`の1箇所に
+集約されているため、Video側の機能を拡張する際もAudio側のコード（`audio.ts`、
+Player Sheet関連）を触る必要は基本的にありません。
+
 ### `src/media.ts`
 
 責務:
@@ -161,10 +191,15 @@ type MediaItem = {
   type: "audio" | "video"
   url?: string
   durationSeconds?: number
+  createdAt?: string       // Homeのソート機能用
+  fileSizeBytes?: number   // Settings > Downloads「Saved」の合計サイズ表示用
 }
 ```
 
-現在の本番 `/api/tracks` はAudioのみをMediaItemへ変換します。
+現在の本番 `/api/tracks` はAudioのみをMediaItemへ変換します（`fetchTracks`が`type`を
+`"audio"`に固定しているため）。これはFrontend側の制約ではなく、後述「4.4 Worker」の
+`worker/tracks.ts`が参照するSupabaseの`tracks`テーブル自体に、Audio/Videoを区別する
+カラムがまだ存在しないためです（詳細は「24.1 Video backend接続（詳細）」参照）。
 
 ### `src/audio.ts`
 
@@ -242,6 +277,87 @@ plav:auto-download
 - `/api/storage` 呼び出し
 - 5分間のFrontendメモリキャッシュ
 - byte表示変換
+
+### `src/cssVars.ts`
+
+責務:
+
+- CSS Custom Property（例: `--progress`, `--title-overflow`）をReactの`style`propへ
+  渡す際に必要な`as CSSProperties`キャストを1箇所へ集約するための型ヘルパー
+- ロジックは持たない（型のためだけの小さいファイル）
+
+### `src/main.tsx`
+
+責務:
+
+- Reactのエントリーポイント（`createRoot` / `<StrictMode>`）
+- グローバルCSS（`app.css` / `player.css`）のimport
+- `<App />`のマウント
+
+### `src/vite-env.d.ts`
+
+責務:
+
+- Viteのクライアント型（`/// <reference types="vite/client" />`）の読み込み
+- `strictImportMetaEnv`を有効化し、`ImportMetaEnv`（`VITE_APP_VERSION` /
+  `VITE_BUILD_DATE`）を明示的に宣言する。これにより`import.meta.env`の未宣言キーへの
+  アクセスが型エラーになる（`any`へ暗黙的に逃げない）
+
+## 4.2 Hooks (`src/hooks/`)
+
+複数のUIコンポーネントで共通する**ジェスチャー・操作パターン**を切り出したもの。
+UIコンポーネント自身は「表示」と「このhookを呼ぶだけ」に留め、状態機械はここへ集約する。
+
+| ファイル | 責務 | 主な利用元 |
+|---|---|---|
+| `useLongPress.ts` | 長押し判定（時間しきい値、移動によるキャンセル、unmount時のクリーンアップ） | `Library.tsx`（Home行 → Detail Sheet） |
+| `useSwipeToClose.ts` | 下方向スワイプでシートを閉じる判定 | `Library.tsx`（Detail Sheet）, `VideoPlayer.tsx` |
+| `useQueueReorder.ts` | Queue行の「長押し→ドラッグ」による並び替え・History⇔Up Next間移動の状態機械（Pointer Capture、Drag Preview、Auto scroll、誤Click抑止） | `PlaybackQueue.tsx` |
+| `useDraggableSheet.ts` | Player Sheetの上下ドラッグによる拡大/縮小/閉じるジェスチャー（速度・距離のしきい値、DOM直接操作によるドラッグ中の軽量化） | `PlayerSheet.tsx` |
+
+## 4.3 Styles (`src/styles/`)
+
+CSSは`app.css`と`player.css`の2ファイルのみで、どちらも`src/styles/`配下に置いている
+（`src`直下には`.css`は置かない）。分割の基準は「画面の主従」であり、技術的な制約では
+ない。
+
+| ファイル | 対象範囲 |
+|---|---|
+| `app.css` | 全体のCSS変数（`:root`）、Base reset、Home / Library / Settings / Bottom Nav / Detail Sheet |
+| `player.css` | Mini Player、Player Sheet、Queue、Video Player |
+
+新しい共通トークン（色・角丸・余白等）を追加する場合は、必ず`app.css`先頭の`:root`へ
+追加し、どちらのファイルからも参照できるようにする。
+
+## 4.4 Worker (`worker/`)
+
+Cloudflare Worker側。`worker/index.ts`がルーティングの入口で、実処理は機能ごとに
+ファイルを分けている。
+
+| ファイル | 責務 |
+|---|---|
+| `index.ts` | APIルーティング（`/api/*`のパスとHTTP methodで各処理へ振り分け）、`Env`型定義、共通エラーハンドリング |
+| `tracks.ts` | Supabaseの`tracks`テーブルとのやり取り（一覧取得・単体取得・タイトル更新・削除）。Supabase REST APIを直接叩く |
+| `media.ts` | R2からのAudio/Video配信（Range Request対応、206/416、削除） |
+| `storage.ts` | R2バケットの現在使用量の集計（`/api/storage`） |
+
+役割の境界は「Supabaseを触るのは`tracks.ts`だけ」「R2を触るのは`media.ts`だけ」
+という単純なルールに沿っている。`index.ts`はこの2つ（と`storage.ts`）を呼び出す
+だけで、Supabase/R2への直接アクセスは行わない。
+
+## 4.5 主要な設定ファイル（リポジトリ直下）
+
+各ツールが専用の設定ファイル形式を要求するため、複数に分かれている（Plav独自の
+分割ではなく、Node.js/TypeScriptプロジェクトとして標準的な構成）。
+
+| ファイル | 担当ツール | 役割 |
+|---|---|---|
+| `package.json` | npm | 依存パッケージ・スクリプト定義（`dev` / `build` / `deploy`等） |
+| `package-lock.json` | npm | 依存関係のバージョン固定（自動生成、手動編集しない） |
+| `tsconfig.json` | TypeScript | 型チェックのルール（`strict` / `noUnusedLocals`等） |
+| `vite.config.ts` | Vite | ビルド・開発サーバー設定、`import.meta.env`への値の埋め込み（`VITE_APP_VERSION`等） |
+| `wrangler.jsonc` | Cloudflare Wrangler | Workerのデプロイ設定（R2バインディング、環境変数、Secret要求） |
+| `.oxlintrc.json` | oxlint | Lintルール |
 
 ---
 
@@ -428,6 +544,29 @@ Cloud
 App
 About
 ```
+
+## 5.6 `SeekBar.tsx`
+
+Mini Player（`CollapsedPlayer.tsx`）とPlayer Sheet（`PlayerSheet.tsx`）の両方から
+共通で使われるSeekバー。ドラッグ中のプレビュー時間表示と、離した時点での実際の
+Seek実行（`onSeekCommit`）を分離しているのが責務の中心（ドラッグ中に毎フレーム
+`audio.currentTime`を書き換えるとブラウザ負荷が大きいため）。
+
+## 5.7 `VideoPlayer.tsx`
+
+Video再生用のボトムシート。責務はAudio側のPlayer Sheetと似ているが、対象が
+`<video>`要素である点と、Queue（History/Up Next）を持たない点が異なる。
+
+```text
+Play / Pause
+Seek（progress bar）
+10秒 早戻し / 早送り
+Fullscreen（標準API → iOS Safariの`webkitEnterFullscreen`にfallback）
+下スワイプで閉じる（useSwipeToClose）
+```
+
+現状、Next/Previous・Picture-in-Picture・再生位置の記憶は未実装。詳細は
+「24.2 Video UX強化の提案」を参照。
 
 ---
 
@@ -1469,7 +1608,11 @@ Object keyやファイル名は返しません。
 # 23. 現在の既知制約
 
 1. **Video data source未接続**
-   Video UIは存在するが本番tracks APIはAudioのみ。
+   Video UI（`src/video.ts` / `src/ui/VideoPlayer.tsx`）は存在するが本番tracks APIは
+   Audioのみ返す。これは単なるAPI側のフィルタではなく、Supabaseの`tracks`テーブル自体に
+   Audio/Videoを区別する列が無く、`worker/tracks.ts`もAudio専用の列名（`audio_key`）を
+   前提にしていることに起因する（`src/media.ts`の`fetchTracks`も`type`を`"audio"`に
+   固定している）。具体的な対応手順は「24.1 Video backend接続（詳細）」を参照。
 
 2. **完全Offline PWAではない**
    Audio CacheはあるがApp Shell / metadataを完全Offline化していない。
@@ -1502,6 +1645,55 @@ Object keyやファイル名は返しません。
 7. Cloud usage operation monitoring
 8. Authentication（一般公開する場合）
 ```
+
+## 24.1 Video backend接続（詳細）
+
+Video機能を実際に使えるようにするための**最初の前提条件**です。これをやらない限り、
+Frontend側のVideo UIをどれだけ改善しても表示するコンテンツ自体が来ません。
+幸い、変更範囲は小さく収まります（`createdAt`/`fileSizeBytes`をAPIへ追加したのと
+同じ規模のパターン）。
+
+```text
+1. Supabase: tracksテーブルへ type 列を追加
+     - 例: text型、既存行のデフォルトは 'audio'
+     - Video行を用意する場合は type = 'video' を設定
+     - audio_key列はそのまま「メディアのR2 key」として流用してよい
+       （video向けに列名を変える必要はない。名前が実態と少しずれるだけ）
+
+2. worker/tracks.ts
+     - TRACK_FIELDS / TrackRow へ type を追加
+     - listTracks()のレスポンスへ type: track.type を追加
+
+3. src/media.ts
+     - ApiTrack / fetchTracks() の type を "audio" 固定から
+       track.type（API由来の値）へ変更
+
+4. worker/media.ts
+     - 変更不要。Content-Typeは R2オブジェクトのhttpMetadata.contentTypeを
+       優先して使っており（無ければ"audio/mpeg"にfallback）、Video用の
+       R2オブジェクトを正しいContent-Type（例: video/mp4）でアップロードして
+       あれば、そのまま配信できる。
+```
+
+Range Request（Seekのために必要）も`worker/media.ts`は既にファイル形式に依存しない
+汎用実装のため、Video用の追加対応は不要です。
+
+## 24.2 Video UX強化の提案（工数の目安つき）
+
+上記のbackend接続を終え、実際にVideoコンテンツが取得できるようになった前提での、
+Frontend側の改善案です。工数の小さい順に並べています。
+
+| 案 | 内容 | 工数目安 |
+|---|---|---|
+| 再生終了時の挙動改善 | 現状`handleEnded`は`isPlaying`をfalseにするだけで、最後のフレームで一時停止表示のまま残る。終了時に自動でSheetを閉じる、または次の動画へ自動遷移するよう変更 | 小 |
+| Next / Previous | Audioの`playableAudioItems`と同様、Video種別に絞った一覧内でのインデックス移動を`video.ts`へ追加し、`VideoPlayer.tsx`に次へ/前へボタンを追加。現状Videoは1本再生したら都度Homeへ戻って選び直す必要がある | 中（Audio側の実装パターンを流用できるため、ゼロから設計するよりは小さい） |
+| Picture-in-Picture | `video.requestPictureInPicture()`（iOS Safariは`webkitSetPresentationMode`）を`enterFullscreen`と同様の二段構えで実装し、Fullscreenボタンの隣にPiPボタンを追加 | 中 |
+| 再生位置の記憶 | 閉じた動画を再度開いたときに続きから再生（`currentTime`をIDごとに保持） | 小〜中（保持先をメモリのみにするかlocalStorageへ永続化するかで変わる） |
+
+**Media Session連携（Audioと同様のLock Screen操作）は優先度を下げて良い**です。iOS
+SafariはVideoがバックグラウンド/画面ロック時に一時停止される仕様のため、Audioほどの
+恩恵がありません（PiP中は别ですが、まずは上記の基本機能を優先する方が費用対効果が
+高いと考えられます）。
 
 ---
 

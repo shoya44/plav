@@ -1,6 +1,6 @@
 # Plav 詳細仕様書
 
-**対象:** Plav v0.3.5
+**対象:** Plav v0.4.0
 **用途:** ユーザー操作、保守、UI調整、障害調査、機能追加時の共通理解
 **主対象端末:** iPhone / iOS PWA
 **実装:** React + TypeScript + Vite + Cloudflare Workers + Supabase + Cloudflare R2

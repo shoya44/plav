@@ -5,7 +5,7 @@ Plav は、iPhone / PWA を主対象とした個人用の軽量メディアプ�
 
 - Repository: `https://github.com/shoya44/plav`
 - Production: `https://plav.take503503.workers.dev/`
-- Current version: `v0.3.5`
+- Current version: `v0.4.0`
 - Frontend: React + TypeScript + Vite
 - Backend: Cloudflare Workers
 - Metadata: Supabase `tracks`
@@ -13,6 +13,7 @@ Plav は、iPhone / PWA を主対象とした個人用の軽量メディアプ�
 - Local save: Browser Cache Storage
 
 > 詳細な内部仕様・データフロー・UI修正箇所・テスト観点は [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) を参照してください。
+> 初めて保守に入る方は、まず [`docs/MAINTAINER_GUIDE.md`](docs/MAINTAINER_GUIDE.md)（要点だけの早見表）から読むのがおすすめです。
 
 ---
 
@@ -193,7 +194,9 @@ plav/
 │  └─ storage.ts              # R2容量集計
 │
 ├─ docs/
-│  └─ SPECIFICATION.md        # 詳細仕様書
+│  ├─ MAINTAINER_GUIDE.md     # 保守担当者向け早見表（まずここから）
+│  ├─ SPECIFICATION.md        # 詳細仕様書
+│  └─ DEVELOPMENT_NOTES.md    # 開発中に発生した不具合・原因・教訓、iPhone/PWA制約
 │
 ├─ index.html
 ├─ package.json
@@ -417,9 +420,15 @@ git apply -R C:\path\to\plav_fix.patch
 
 ## 12. 詳細仕様
 
-実装担当者向けの詳細は以下に集約します。
+これから保守に入る方は、まず要点だけをまとめた早見表から読むのがおすすめです。
+
+**[`docs/MAINTAINER_GUIDE.md`](docs/MAINTAINER_GUIDE.md)**
+ツール概観、画面と主なファイルの対応、軽微なUI調整時の修正箇所、触るときの注意点。
+
+実装担当者向けのより詳細な情報は以下に集約します。
 
 **[`docs/SPECIFICATION.md`](docs/SPECIFICATION.md)**
+画面ごとの詳細な仕様・状態遷移・テスト観点。
 
 開発中に発生した不具合とその原因・直し方、iPhone/PWA特有の制約と回避策、保守時の
 チェックリストは以下にまとめています。初学者向けに噛み砕いて書いているので、

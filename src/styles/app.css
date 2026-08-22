@@ -70,6 +70,16 @@ body {
   -webkit-touch-callout: none;
 }
 
+/*
+  Plavはタッチ操作前提だが、外部キーボードやVoiceOver等でフォーカス移動
+  したときに、ブラウザ標準のフォーカスリング（青/オレンジ等バラバラな色）
+  が出るとアプリの配色から浮いてしまう。アクセントカラーへ統一する。
+*/
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
 body {
   min-width: 320px;
 

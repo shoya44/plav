@@ -284,6 +284,21 @@ export function useOfflineMedia(items: MediaItem[]) {
     [audioItems, downloadedIds],
   )
 
+  // Settings > Downloads の「Saved」欄で合計サイズを表示するための集計。
+  // 実際にCache Storageへ読みに行かず、Supabase由来のfile_size_bytes
+  // （/api/tracksのfileSizeBytes）を合算するだけなので軽量。
+  const downloadedBytes = useMemo(
+    () =>
+      audioItems.reduce(
+        (total, item) =>
+          downloadedIds.has(item.id)
+            ? total + (item.fileSizeBytes ?? 0)
+            : total,
+        0,
+      ),
+    [audioItems, downloadedIds],
+  )
+
   // 戻り値オブジェクトの参照を安定させ、これをpropsとして受け取る
   // 画面側（Library等）が不要に再レンダリングされないようにする。
   return useMemo(
@@ -295,6 +310,7 @@ export function useOfflineMedia(items: MediaItem[]) {
       downloadingIds,
       errorIds,
       downloadedCount,
+      downloadedBytes,
       totalCount: audioItems.length,
       toggleDownload,
       setAutoDownload,
@@ -308,6 +324,7 @@ export function useOfflineMedia(items: MediaItem[]) {
       downloadingIds,
       errorIds,
       downloadedCount,
+      downloadedBytes,
       audioItems.length,
       toggleDownload,
       setAutoDownload,

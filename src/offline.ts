@@ -298,6 +298,7 @@ export function useOfflineMedia(items: MediaItem[]) {
       totalCount: audioItems.length,
       toggleDownload,
       setAutoDownload,
+      removeDownload: removeItem,
     }),
     [
       isSupported,
@@ -310,6 +311,7 @@ export function useOfflineMedia(items: MediaItem[]) {
       audioItems.length,
       toggleDownload,
       setAutoDownload,
+      removeItem,
     ],
   )
 }

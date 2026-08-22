@@ -6,13 +6,17 @@ export type MediaItem = {
   type: MediaType
   url?: string
   durationSeconds?: number
+  createdAt?: string
 }
+
+export type SortMode = "dateAddedDesc" | "dateAddedAsc" | "titleAsc"
 
 type ApiTrack = {
   id: string
   title: string
   durationSeconds: number
   mediaUrl: string
+  createdAt: string
 }
 
 type TracksResponse = {
@@ -34,7 +38,56 @@ export async function fetchTracks(): Promise<MediaItem[]> {
     type: "audio",
     url: track.mediaUrl,
     durationSeconds: track.durationSeconds,
+    createdAt: track.createdAt,
   }))
+}
+
+export function sortItems(
+  items: MediaItem[],
+  sortMode: SortMode,
+): MediaItem[] {
+  const sorted = [...items]
+
+  switch (sortMode) {
+    case "titleAsc":
+      sorted.sort((a, b) =>
+        getDisplayTitle(a.title).localeCompare(getDisplayTitle(b.title)),
+      )
+      break
+    case "dateAddedAsc":
+      sorted.sort((a, b) => (a.createdAt ?? "").localeCompare(b.createdAt ?? ""))
+      break
+    case "dateAddedDesc":
+      sorted.sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""))
+      break
+  }
+
+  return sorted
+}
+
+export async function updateTrackTitle(
+  id: string,
+  title: string,
+): Promise<void> {
+  const response = await fetch(`/api/tracks/${id}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`タイトルの更新に失敗しました。(${response.status})`)
+  }
+}
+
+export async function deleteTrack(id: string): Promise<void> {
+  const response = await fetch(`/api/tracks/${id}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    throw new Error(`曲の削除に失敗しました。(${response.status})`)
+  }
 }
 
 export function getDisplayTitle(title: string) {

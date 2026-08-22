@@ -6,10 +6,11 @@ export type TrackRow = {
   audio_key: string
   duration_seconds: number
   file_size_bytes: number
+  created_at: string
 }
 
 const TRACK_FIELDS =
-  "id,title,audio_key,duration_seconds,file_size_bytes"
+  "id,title,audio_key,duration_seconds,file_size_bytes,created_at"
 
 function databaseError(): never {
   throw Response.json(
@@ -19,6 +20,18 @@ function databaseError(): never {
     },
     { status: 502 },
   )
+}
+
+function tracksUrl(env: Env, trackId: string) {
+  const url = new URL(
+    "/rest/v1/tracks",
+    `${env.SUPABASE_URL.replace(/\/+$/, "")}/`,
+  )
+
+  url.searchParams.set("id", `eq.${trackId}`)
+  url.searchParams.set("owner_id", `eq.${env.PLAV_OWNER_ID}`)
+
+  return url
 }
 
 async function queryTracks(
@@ -65,8 +78,53 @@ export async function listTracks(env: Env) {
       title: track.title,
       durationSeconds: track.duration_seconds,
       mediaUrl: `/api/media/${track.id}`,
+      createdAt: track.created_at,
     })),
   })
+}
+
+export async function updateTrackTitle(
+  env: Env,
+  trackId: string,
+  title: string,
+) {
+  const response = await fetch(tracksUrl(env, trackId), {
+    method: "PATCH",
+    headers: {
+      apikey: env.SUPABASE_SECRET_KEY,
+      "Content-Type": "application/json",
+      Prefer: "return=minimal",
+    },
+    body: JSON.stringify({ title }),
+  })
+
+  if (!response.ok) {
+    console.error(
+      "Supabase error:",
+      response.status,
+      await response.text(),
+    )
+    databaseError()
+  }
+}
+
+export async function deleteTrackRow(env: Env, trackId: string) {
+  const response = await fetch(tracksUrl(env, trackId), {
+    method: "DELETE",
+    headers: {
+      apikey: env.SUPABASE_SECRET_KEY,
+      Prefer: "return=minimal",
+    },
+  })
+
+  if (!response.ok) {
+    console.error(
+      "Supabase error:",
+      response.status,
+      await response.text(),
+    )
+    databaseError()
+  }
 }
 
 export async function findTrack(env: Env, trackId: string) {

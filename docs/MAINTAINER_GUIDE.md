@@ -20,6 +20,8 @@ UI調整をどこで行えばいいか」を素早く把握するための、要
 - フロントエンドとAPIは**1つのCloudflare Worker**にまとまっている（別サーバーは無い）。
 - 現在の実運用はAudio中心。Video再生のUI/ロジックはあるが、`/api/tracks` がAudioしか
   返さないため通常は使われない。
+- 一覧取得だけでなく、曲のタイトル更新・完全削除（Supabaseレコード + R2ファイル）も
+  Workerの`PATCH` / `DELETE /api/tracks/:id`経由でサポートしている。
 
 ### 技術スタック
 
@@ -72,7 +74,9 @@ Video再生             → src/ui/VideoPlayer.tsx
 |---|---|
 | Header / Nav / Home全体レイアウト | `src/App.tsx`, `src/styles/app.css` |
 | Homeの曲一覧の見た目・挙動 | `src/ui/Library.tsx`, `src/styles/app.css` |
+| Homeのソート（追加日 / タイトル順） | `src/App.tsx`, `src/media.ts`（`sortItems`） |
 | 長押し / Play next | `src/ui/Library.tsx`, `src/hooks/useLongPress.ts`, `src/audio.ts` |
+| タイトル編集 / 曲の完全削除 | `src/ui/Library.tsx`（Detail Sheet）, `src/media.ts`, `src/App.tsx`, `worker/tracks.ts`, `worker/media.ts` |
 | ダウンロード状態の表示 | `src/ui/Library.tsx`, `src/offline.ts`, `src/styles/app.css` |
 | Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
 | Player Sheet（開閉・拡大縮小） | `src/ui/PlayerSheet.tsx`, `src/hooks/useDraggableSheet.ts`, `src/styles/player.css` |
@@ -114,9 +118,14 @@ PCブラウザのモバイルビューポート＋タッチエミュレーショ
   イベント伝播まわりは直感に反する挙動をするため、同じバグを再発させやすい領域です。
 - **Secretをコードやドキュメントに書かない**: `SUPABASE_SECRET_KEY` 等はWranglerの
   Secretとしてのみ保持し、Frontendやリポジトリへ埋め込まない。
-- **Supabase / R2の外部リソースを勝手に変更しない**: `yt-player` DBの構造や
+- **Supabase / R2の外部リソースを勝手に変更しない**: `yt-player` DBの構造（カラム等）や
   `yt-player-audio` Bucketの名称は、Plav側の都合だけで変更しない（他用途でも使われている
-  可能性があるため）。
+  可能性があるため）。曲のタイトル更新・削除はPlavの正規機能として実装済みだが、
+  それ以外の書き込み（新しいテーブル、スキーマ変更等）を安易に追加しない。
+- **曲の削除は完全削除で元に戻せない**: `DELETE /api/tracks/:id` はSupabaseのレコードと
+  R2のファイルを両方削除する（論理削除ではない）。この挙動を変える場合は
+  [`SPECIFICATION.md`](./SPECIFICATION.md) の「10.4 `DELETE /api/tracks/:id`」を確認し、
+  Settings > Cloudの容量表示との整合性も含めて検討すること。
 - **ファイルを増やしすぎない**: 現在の分割方針（`App.tsx` / 状態は`audio.ts`等 / UIは
   `src/ui/` / 共通ジェスチャーは`src/hooks/` / CSSは`app.css`と`player.css`の2本）を
   基本形とし、ファイル数を減らすためだけに巨大な1ファイルへ統合したり、逆に1つの小さな

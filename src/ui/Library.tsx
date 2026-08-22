@@ -5,7 +5,14 @@ import {
   useRef,
   useState,
 } from "react"
-import { Check, Download, ListPlus, LoaderCircle } from "lucide-react"
+import {
+  Check,
+  Download,
+  ListPlus,
+  LoaderCircle,
+  Pencil,
+  Trash2,
+} from "lucide-react"
 
 import { cssVars } from "../cssVars"
 import { useLongPress } from "../hooks/useLongPress"
@@ -24,6 +31,8 @@ type Props = {
   offline: OfflineMediaController
   onPlay: (item: MediaItem) => void
   onPlayNext: (item: MediaItem) => void
+  onUpdateTitle: (item: MediaItem, title: string) => Promise<void>
+  onDeleteTrack: (item: MediaItem) => Promise<void>
 }
 
 const LONG_PRESS_MS = 450
@@ -61,8 +70,20 @@ export const Library = memo(function Library({
   offline,
   onPlay,
   onPlayNext,
+  onUpdateTitle,
+  onDeleteTrack,
 }: Props) {
-  const [detailItem, setDetailItem] = useState<MediaItem | null>(null)
+  // Detail SheetはIDだけ保持し、表示するitemは毎回itemsから引く。
+  // item自体をstateに持つと、タイトル更新後もSheetが開いた時点の
+  // 古いスナップショットを表示し続けてしまう（そのための同期用useEffectを
+  // 増やすよりも、そもそも重複した状態を持たない方がシンプルで正しい）。
+  const [detailItemId, setDetailItemId] = useState<MediaItem["id"] | null>(
+    null,
+  )
+  const detailItem =
+    (detailItemId
+      ? items.find((item) => item.id === detailItemId)
+      : null) ?? null
   const { toggleDownload } = offline
 
   // MediaRowへ渡す関数参照を安定させ、曲一覧の再生中の
@@ -75,10 +96,25 @@ export const Library = memo(function Library({
   const handlePlayNext = useCallback(() => {
     if (!detailItem) return
     onPlayNext(detailItem)
-    setDetailItem(null)
+    setDetailItemId(null)
   }, [detailItem, onPlayNext])
 
-  const closeDetail = useCallback(() => setDetailItem(null), [])
+  const closeDetail = useCallback(() => setDetailItemId(null), [])
+
+  const showDetail = useCallback(
+    (item: MediaItem) => setDetailItemId(item.id),
+    [],
+  )
+
+  // 削除成功時だけDetail Sheetを閉じる（失敗時はSheet内にエラーを
+  // 表示したまま残す）。
+  const handleDelete = useCallback(
+    async (item: MediaItem) => {
+      await onDeleteTrack(item)
+      setDetailItemId(null)
+    },
+    [onDeleteTrack],
+  )
 
   return (
     <>
@@ -98,7 +134,7 @@ export const Library = memo(function Library({
             canDownload={offline.isSupported && item.type === "audio"}
             onPlay={onPlay}
             onToggleDownload={handleToggleDownload}
-            onShowDetail={setDetailItem}
+            onShowDetail={showDetail}
           />
         ))}
       </div>
@@ -110,6 +146,8 @@ export const Library = memo(function Library({
           canPlayNext={Boolean(currentAudioId)}
           hasMiniPlayer={Boolean(currentAudioId)}
           onPlayNext={handlePlayNext}
+          onUpdateTitle={onUpdateTitle}
+          onDelete={handleDelete}
           onClose={closeDetail}
         />
       )}
@@ -213,6 +251,8 @@ function DetailSheet({
   canPlayNext,
   hasMiniPlayer,
   onPlayNext,
+  onUpdateTitle,
+  onDelete,
   onClose,
 }: {
   item: MediaItem
@@ -220,12 +260,22 @@ function DetailSheet({
   canPlayNext: boolean
   hasMiniPlayer: boolean
   onPlayNext: () => void
+  onUpdateTitle: (item: MediaItem, title: string) => Promise<void>
+  onDelete: (item: MediaItem) => Promise<void>
   onClose: () => void
 }) {
   const swipeToClose = useSwipeToClose(onClose)
   const titleViewportRef = useRef<HTMLDivElement>(null)
   const titleTextRef = useRef<HTMLSpanElement>(null)
   const [titleOverflow, setTitleOverflow] = useState(0)
+
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState(() =>
+    getDisplayTitle(item.title),
+  )
+  const [isSavingTitle, setIsSavingTitle] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
 
   useLayoutEffect(() => {
     const measure = () => {
@@ -240,7 +290,58 @@ function DetailSheet({
     return () => window.removeEventListener("resize", measure)
   }, [item.title])
 
-  const extension = getFileExtension(item.title).toUpperCase()
+  const extension = getFileExtension(item.title)
+
+  const startEditingTitle = () => {
+    setTitleDraft(getDisplayTitle(item.title))
+    setErrorMessage("")
+    setIsEditingTitle(true)
+  }
+
+  const cancelEditingTitle = () => {
+    setIsEditingTitle(false)
+    setErrorMessage("")
+  }
+
+  const saveTitle = async () => {
+    const trimmed = titleDraft.trim()
+    if (!trimmed || isSavingTitle) return
+
+    const fullTitle = extension ? `${trimmed}.${extension}` : trimmed
+
+    setIsSavingTitle(true)
+    setErrorMessage("")
+
+    try {
+      await onUpdateTitle(item, fullTitle)
+      setIsEditingTitle(false)
+    } catch (error) {
+      console.error("タイトルの更新に失敗しました:", error)
+      setErrorMessage("Couldn't save the title. Try again.")
+    } finally {
+      setIsSavingTitle(false)
+    }
+  }
+
+  const handleDeleteTap = async () => {
+    if (isDeleting) return
+
+    const confirmed = window.confirm(
+      `Delete "${getDisplayTitle(item.title)}"? This removes the file permanently and can't be undone.`,
+    )
+    if (!confirmed) return
+
+    setIsDeleting(true)
+    setErrorMessage("")
+
+    try {
+      await onDelete(item)
+    } catch (error) {
+      console.error("曲の削除に失敗しました:", error)
+      setErrorMessage("Couldn't delete this track. Try again.")
+      setIsDeleting(false)
+    }
+  }
 
   return (
     <>
@@ -261,19 +362,63 @@ function DetailSheet({
       >
         <div className="sheet-handle detail-handle" />
 
-        <div className="detail-title-viewport" ref={titleViewportRef}>
-          <span
-            ref={titleTextRef}
-            className={`detail-title${titleOverflow > 0 ? " scrolling" : ""}`}
-            style={cssVars({ "--title-overflow": `${titleOverflow}px` })}
-          >
-            {getDisplayTitle(item.title)}
-          </span>
-        </div>
+        {isEditingTitle ? (
+          <div className="detail-title-edit">
+            <input
+              className="detail-title-input"
+              type="text"
+              value={titleDraft}
+              autoFocus
+              disabled={isSavingTitle}
+              onChange={(event) => setTitleDraft(event.target.value)}
+            />
+
+            <div className="detail-title-edit-actions">
+              <button
+                className="detail-title-edit-cancel"
+                type="button"
+                disabled={isSavingTitle}
+                onClick={cancelEditingTitle}
+              >
+                Cancel
+              </button>
+
+              <button
+                className="detail-title-edit-save"
+                type="button"
+                disabled={isSavingTitle || !titleDraft.trim()}
+                onClick={() => void saveTitle()}
+              >
+                {isSavingTitle ? "Saving..." : "Save"}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="detail-title-row">
+            <div className="detail-title-viewport" ref={titleViewportRef}>
+              <span
+                ref={titleTextRef}
+                className={`detail-title${titleOverflow > 0 ? " scrolling" : ""}`}
+                style={cssVars({ "--title-overflow": `${titleOverflow}px` })}
+              >
+                {getDisplayTitle(item.title)}
+              </span>
+            </div>
+
+            <button
+              className="detail-title-edit-button"
+              type="button"
+              aria-label="Edit title"
+              onClick={startEditingTitle}
+            >
+              <Pencil size={16} strokeWidth={1.8} />
+            </button>
+          </div>
+        )}
 
         <div className="detail-meta">
           <span>{item.type === "audio" ? "Audio" : "Video"}</span>
-          {extension && <span>{extension}</span>}
+          {extension && <span>{extension.toUpperCase()}</span>}
         </div>
 
         {showPlayNext && (
@@ -293,6 +438,20 @@ function DetailSheet({
           <div className="detail-play-next-note">
             Start a track first
           </div>
+        )}
+
+        <button
+          className="detail-delete"
+          type="button"
+          disabled={isDeleting}
+          onClick={() => void handleDeleteTap()}
+        >
+          <Trash2 size={17} strokeWidth={1.8} />
+          <span>{isDeleting ? "Deleting..." : "Delete"}</span>
+        </button>
+
+        {errorMessage && (
+          <div className="detail-error">{errorMessage}</div>
         )}
       </section>
     </>

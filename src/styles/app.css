@@ -209,12 +209,54 @@ button {
   display: none;
 }
 
+.home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+
+  padding: 0 12px;
+}
+
 .media-switcher {
   display: flex;
   align-items: center;
   width: fit-content;
-  margin: 4px 0 10px 12px;
+  margin: 4px 0 10px;
   gap: 4px;
+}
+
+.sort-button {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+
+  min-height: 36px;
+  padding: 0 12px;
+
+  border: 0;
+  border-radius: 11px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+
+  transition:
+    background var(--transition-ui),
+    color var(--transition-ui),
+    transform var(--transition-fast);
+}
+
+.sort-button:active {
+  background: rgba(255, 255, 255, 0.09);
+  transform: scale(0.96);
+}
+
+.sort-button-label {
+  white-space: nowrap;
 }
 
 .switch-button {
@@ -367,7 +409,8 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .shuffle-button,
   .nav-button,
-  .switch-button {
+  .switch-button,
+  .sort-button {
     transition: none;
   }
 }
@@ -489,8 +532,15 @@ html.plav-long-press-lock body * {
   margin-bottom: 28px;
 }
 
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .detail-title-viewport {
-  width: 100%;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
 }
 
@@ -507,6 +557,89 @@ html.plav-long-press-lock body * {
 
 .detail-title.scrolling {
   animation: detail-title-scroll 7s ease-in-out infinite;
+}
+
+.detail-title-edit-button {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+
+  width: 32px;
+  height: 32px;
+
+  border: 0;
+  border-radius: 9px;
+  background: var(--surface-soft);
+  color: var(--text-secondary);
+  cursor: pointer;
+
+  transition: background var(--transition-fast);
+}
+
+.detail-title-edit-button:active {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.detail-title-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.detail-title-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+
+  border: 1px solid var(--border-accent);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.045);
+  color: var(--text-strong);
+
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.detail-title-input:focus {
+  outline: none;
+  border-color: var(--accent-bright);
+}
+
+.detail-title-edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.detail-title-edit-cancel,
+.detail-title-edit-save {
+  min-height: 34px;
+  padding: 0 14px;
+
+  border: 0;
+  border-radius: 9px;
+
+  font-size: 13px;
+  font-weight: 500;
+
+  cursor: pointer;
+}
+
+.detail-title-edit-cancel {
+  background: transparent;
+  color: var(--text-secondary);
+}
+
+.detail-title-edit-save {
+  background: rgba(82, 183, 255, 0.14);
+  color: var(--accent-bright);
+}
+
+.detail-title-edit-save:disabled,
+.detail-title-edit-cancel:disabled {
+  opacity: 0.5;
+  cursor: default;
 }
 
 .detail-meta {
@@ -572,6 +705,53 @@ html.plav-long-press-lock body * {
   -webkit-user-select: none;
 }
 
+.detail-delete {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  width: 100%;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 14px;
+
+  border: 1px solid rgba(255, 132, 132, 0.16);
+  border-radius: 12px;
+  background: rgba(255, 132, 132, 0.06);
+  color: rgba(255, 132, 132, 0.9);
+
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+
+  cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+
+  transition: background var(--transition-fast), transform var(--transition-fast);
+}
+
+.detail-delete:active {
+  background: rgba(255, 132, 132, 0.12);
+  transform: scale(0.985);
+}
+
+.detail-delete:disabled {
+  opacity: 0.5;
+  cursor: default;
+  transform: none;
+}
+
+.detail-error {
+  margin-top: 10px;
+  color: rgba(255, 132, 132, 0.9);
+  font-size: 11px;
+  text-align: center;
+}
+
 @keyframes detail-title-scroll {
   0%,
   15% {
@@ -593,7 +773,9 @@ html.plav-long-press-lock body * {
     animation: none;
   }
 
-  .detail-play-next {
+  .detail-play-next,
+  .detail-delete,
+  .detail-title-edit-button {
     transition: none;
   }
 }

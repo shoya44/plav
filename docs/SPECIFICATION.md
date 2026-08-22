@@ -259,7 +259,9 @@ Short tap on title
 
 Long press on title
   → Detail Sheet
-      └─ Play next
+      ├─ Play next
+      ├─ 編集アイコン → タイトル編集（PATCH /api/tracks/:id）
+      └─ Delete → 確認ダイアログ → 完全削除（DELETE /api/tracks/:id）
 
 Tap download icon
   → Download / Remove local cache
@@ -283,6 +285,44 @@ iOS文字選択対策:
 - Selection range clear
 
 Detail SheetはMini Player表示中、Mini Playerの上へ配置します。
+
+### Home: ソート
+
+`.home-toolbar`内の`.sort-button`をタップするたびに、以下の3モードを順に切り替えます
+（`src/media.ts`の`SortMode` / `sortItems`、状態は`src/App.tsx`）。
+
+```text
+dateAddedDesc (Newest) → dateAddedAsc (Oldest) → titleAsc (A–Z) → (先頭へ戻る)
+```
+
+選択中のモードは`localStorage`（キー: `plav:sort-mode`）へ保存し、次回起動時も維持します。
+
+**再生キューとの関係**: `useAudioPlayer`へ渡す曲一覧は、Home表示用にmediaType
+（Audio/Video）で絞り込む**前**にこのソートを適用したものです。そのため、Up Nextは
+常にHomeで現在選択中の並び順を引き継ぎます。この設計に至った経緯・踏んだ罠は
+[`DEVELOPMENT_NOTES.md`](./DEVELOPMENT_NOTES.md) の「1-6」を参照してください。
+
+### Detail Sheet: タイトル編集
+
+編集アイコンをタップすると、タイトル表示部分が`<input>` + Save/Cancelへ切り替わります
+（拡張子部分は編集対象から除き、保存時に元の拡張子を付け戻します）。保存が成功すると
+編集UIは閉じ、Detail Sheetはそのまま開いたまま新しいタイトルを表示します
+（`Library.tsx`はDetail Sheetの対象をID（`detailItemId`）だけで保持し、表示するitemは
+毎回`items`から都度検索して取り出す実装のため、親から渡される`items`が更新されれば
+自動的に反映されます。詳細は [`DEVELOPMENT_NOTES.md`](./DEVELOPMENT_NOTES.md) の
+「1-7」を参照）。保存に失敗した場合はSheetを閉じずにエラーメッセージを表示します。
+
+### Detail Sheet: 完全削除
+
+`Delete`ボタンをタップすると`window.confirm`で確認し、承諾された場合のみ削除を実行します。
+成功するとDetail Sheetを閉じ、Homeの一覧からも即座に取り除きます。ローカルCacheへ
+ダウンロード済みだった場合は、そのキャッシュエントリも合わせて削除します
+（`offline.ts`の`removeDownload`）。削除に失敗した場合はSheetを閉じずにエラー
+メッセージを表示します。
+
+再生キュー（History / Current / Up Next）に既に乗っている曲を削除した場合、キュー自体
+からは自動的には取り除かれません（キューはHomeの一覧とは独立したセッション内の
+スナップショットのため）。詳細は「10.4 `DELETE /api/tracks/:id`」を参照してください。
 
 ## 5.2 `CollapsedPlayer.tsx`
 
@@ -682,13 +722,69 @@ Frontend向け主要Response:
       "id": "uuid",
       "title": "track title",
       "durationSeconds": 215,
-      "mediaUrl": "/api/media/uuid"
+      "mediaUrl": "/api/media/uuid",
+      "createdAt": "2026-01-01T00:00:00.000Z"
     }
   ]
 }
 ```
 
-## 10.3 `GET /api/media/:id`
+`createdAt`はHomeのソート機能（追加日順）のためにFrontendへ返しています。
+
+## 10.3 `PATCH /api/tracks/:id`
+
+目的:
+
+- 曲タイトルの更新（Home長押し → Detail Sheet → 編集アイコン）
+
+Request body:
+
+```json
+{ "title": "new title.mp3" }
+```
+
+`title`が空文字列の場合は`400 INVALID_TITLE`を返します。SupabaseのRESTへ
+`owner_id = PLAV_OWNER_ID`かつ`id = :id`の条件でPATCHします（`worker/tracks.ts`の
+`updateTrackTitle`）。拡張子込みのtitleをそのまま保存するため、Frontend側
+（`Library.tsx`のDetail Sheet編集UI）で表示用に外した拡張子を保存時に付け戻します。
+
+Response: `{ "ok": true }`
+
+## 10.4 `DELETE /api/tracks/:id`
+
+目的:
+
+- 曲の完全削除（Home長押し → Detail Sheet → Delete、確認ダイアログ後に実行）
+
+処理（`worker/tracks.ts` / `worker/media.ts`）:
+
+```text
+track id
+  ↓
+findTrackでaudio_key確認（見つからなければ404 TRACK_NOT_FOUND）
+  ↓
+R2 AUDIO_BUCKET.delete(audio_key)
+  ↓
+SupabaseのtracksレコードをDELETE（owner_id + id条件）
+```
+
+Supabaseのレコードと R2 のファイルを両方削除する完全削除方式を採用しています
+（論理削除ではありません）。これはSettings > Cloudの容量表示と実際の使用量を
+一致させるための意図的な選択です。**元に戻せません。** Frontend側
+（`Library.tsx`のDetail Sheet）では実行前に`window.confirm`で確認を挟みます。
+
+削除対象がローカルCacheへダウンロード済みだった場合、Frontend側で
+`offline.ts`の`removeDownload`も呼び出し、Cache Storageの該当エントリも
+合わせて削除します（削除後も孤立したキャッシュが端末に残り続けるのを防ぐため）。
+
+削除時に対象の曲がPlayer Sheetの再生キュー（History / Current / Up Next）に
+既に乗っていた場合、そのキューへは反映されません（キューはLibraryとは独立した
+セッション内スナップショットのため）。再生中に削除した場合、その回の再生は
+そのまま最後まで（またはエラーになるまで）続行されます。
+
+Response: `{ "ok": true }`
+
+## 10.5 `GET /api/media/:id`
 
 目的:
 
@@ -726,7 +822,7 @@ R2 AUDIO_BUCKET.get(audio_key)
 Rangeに合わせてResponse
 ```
 
-## 10.4 `GET /api/storage`
+## 10.6 `GET /api/storage`
 
 目的:
 
@@ -986,6 +1082,18 @@ src/styles/app.css
 .media-title
 ```
 
+## Home sort
+
+```text
+src/App.tsx
+src/media.ts
+SortMode
+sortItems
+SORT_MODES / SORT_LABELS / SORT_ICONS
+.home-toolbar
+.sort-button
+```
+
 ## Download icon
 
 ```text
@@ -1001,6 +1109,19 @@ src/ui/Library.tsx
 src/hooks/useLongPress.ts
 LONG_PRESS_MS
 MOVE_CANCEL_PX
+```
+
+## Detail Sheet: title edit / delete
+
+```text
+src/ui/Library.tsx
+.detail-title-edit-button
+.detail-title-edit
+.detail-delete
+src/media.ts
+updateTrackTitle / deleteTrack
+worker/tracks.ts
+worker/media.ts
 ```
 
 ## Play next Sheet
@@ -1171,6 +1292,14 @@ Patchを適用できない場合、無理にファイルを上書きせず、現
 - Vertical scroll時に長押し扱いにならない
 - Detail SheetがMini Playerと重ならない
 - Play nextがCurrent再生中に使用可能
+- ソートボタンでNewest / Oldest / A–Zが順に切り替わる
+- 選択したソートがリロード後も維持される（`localStorage`）
+- ソート変更後にUp Nextが新しい並び順を引き継ぐ
+- Detail Sheetのタイトル編集で保存後にHomeとDetail Sheet両方の表示が更新される
+- タイトル編集の保存失敗時、Detail Sheetを閉じずにエラーを表示する
+- Delete実行前に確認ダイアログが出る
+- 削除成功後、Detail Sheetが閉じHomeの一覧から即座に消える
+- 削除失敗時、Detail Sheetを閉じずにエラーを表示する
 
 ## 20.2 Mini Player
 

@@ -77,6 +77,13 @@ export const PlaybackQueue = memo(function PlaybackQueue({
             onDragStart={(event) => event.preventDefault()}
           >
             <div className="queue-row-main">
+              <span
+                className="queue-drag-handle"
+                aria-hidden="true"
+              >
+                <GripVertical size={20} strokeWidth={1.7} />
+              </span>
+
               <button
                 className="queue-title-button"
                 type="button"
@@ -86,13 +93,6 @@ export const PlaybackQueue = memo(function PlaybackQueue({
                   {getDisplayTitle(item.title)}
                 </span>
               </button>
-
-              <span
-                className="queue-drag-handle"
-                aria-hidden="true"
-              >
-                <GripVertical size={20} strokeWidth={1.7} />
-              </span>
             </div>
           </div>
         )
@@ -134,6 +134,13 @@ export const PlaybackQueue = memo(function PlaybackQueue({
             onDragStart={(event) => event.preventDefault()}
           >
             <div className="queue-row-main">
+              <span
+                className="queue-drag-handle"
+                aria-hidden="true"
+              >
+                <GripVertical size={20} strokeWidth={1.7} />
+              </span>
+
               <button
                 className="queue-title-button"
                 type="button"
@@ -143,13 +150,6 @@ export const PlaybackQueue = memo(function PlaybackQueue({
                   {getDisplayTitle(item.title)}
                 </span>
               </button>
-
-              <span
-                className="queue-drag-handle"
-                aria-hidden="true"
-              >
-                <GripVertical size={20} strokeWidth={1.7} />
-              </span>
             </div>
           </div>
         )
@@ -178,12 +178,12 @@ export const PlaybackQueue = memo(function PlaybackQueue({
             }}
             aria-hidden="true"
           >
-            <span className="queue-drag-preview-title">
-              {reorder.dragPreview.title}
-            </span>
-
             <span className="queue-drag-preview-grip">
               <GripVertical size={18} strokeWidth={1.7} />
+            </span>
+
+            <span className="queue-drag-preview-title">
+              {reorder.dragPreview.title}
             </span>
           </div>,
           document.body,

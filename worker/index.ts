@@ -1,5 +1,10 @@
-import { listTracks } from "./tracks"
-import { streamTrack } from "./media"
+import {
+  deleteTrackRow,
+  findTrack,
+  listTracks,
+  updateTrackTitle,
+} from "./tracks"
+import { deleteMediaObject, streamTrack } from "./media"
 import { getStorageUsage } from "./storage"
 
 export type R2ObjectBody = {
@@ -33,6 +38,7 @@ export type Env = {
       cursor?: string
       limit?: number
     }): Promise<R2ListResult>
+    delete(key: string): Promise<void>
   }
 }
 
@@ -62,6 +68,39 @@ async function handleApi(request: Request, env: Env) {
     (request.method === "GET" || request.method === "HEAD")
   ) {
     return streamTrack(request, env, mediaMatch[1])
+  }
+
+  const trackMatch = url.pathname.match(/^\/api\/tracks\/([^/]+)$/)
+
+  if (trackMatch && request.method === "PATCH") {
+    const trackId = trackMatch[1]
+    const body = (await request.json().catch(() => null)) as {
+      title?: unknown
+    } | null
+
+    if (typeof body?.title !== "string" || !body.title.trim()) {
+      return error(
+        400,
+        "INVALID_TITLE",
+        "タイトルを入力してください。",
+      )
+    }
+
+    await updateTrackTitle(env, trackId, body.title.trim())
+    return Response.json({ ok: true })
+  }
+
+  if (trackMatch && request.method === "DELETE") {
+    const trackId = trackMatch[1]
+    const track = await findTrack(env, trackId)
+
+    if (!track) {
+      return error(404, "TRACK_NOT_FOUND", "対象の曲が見つかりません。")
+    }
+
+    await deleteMediaObject(env, track.audio_key)
+    await deleteTrackRow(env, trackId)
+    return Response.json({ ok: true })
   }
 
   return error(404, "NOT_FOUND", "APIが見つかりません。")

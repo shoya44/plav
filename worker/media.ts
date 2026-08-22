@@ -51,6 +51,10 @@ function parseRange(value: string, size: number): ByteRange | null {
   }
 }
 
+export async function deleteMediaObject(env: Env, audioKey: string) {
+  await env.AUDIO_BUCKET.delete(audioKey)
+}
+
 export async function streamTrack(
   request: Request,
   env: Env,

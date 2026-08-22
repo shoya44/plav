@@ -22,15 +22,16 @@ Plav は、iPhone / PWA を主対象とした個人用の軽量メディアプ�
 ### Audio
 
 - Supabaseの楽曲一覧をHomeへ表示
+- Homeの並び替え（追加日: 新しい順 / 古い順、タイトル: A–Z）
 - 再生 / 一時停止
 - Previous / Next
 - Seek
 - Shuffle
 - Repeat
 - Playback history
-- Up Next queue
-- Home長押しから `Play next`
-- Player Sheet上でUp Nextを **長押し + ドラッグ** して並び替え
+- Up Next queue（Homeの並び替え順を引き継ぐ）
+- Home長押しから `Play next` / タイトル編集 / 完全削除
+- Player Sheet上でHistory / Up Nextを **長押し + ドラッグ** して並び替え（History⇔Up Next間の移動も可能）
 - iOS Media Session / Lock Screen操作
 - 保存済み楽曲はローカルCacheから再生
 
@@ -71,10 +72,12 @@ Video PlayerのUI / 再生ロジックは残していますが、現在の `/api
 ### Home
 
 1. Audioタブを開く
-2. 曲名をタップすると再生
-3. 右側のDownload iconをタップするとローカル保存
-4. 曲名を長押しするとDetail Sheetを表示
-5. 再生中に別の曲を長押しし、`Play next` を押すと次の曲へ設定
+2. 右上のソートボタンをタップすると、追加日（新しい順 / 古い順）・タイトル順（A–Z）を切り替え
+3. 曲名をタップすると再生（Up Nextはこの並び順で構築される）
+4. 右側のDownload iconをタップするとローカル保存
+5. 曲名を長押しするとDetail Sheetを表示
+6. 再生中に別の曲を長押しし、`Play next` を押すと次の曲へ設定
+7. Detail Sheetの編集アイコンからタイトルを変更、`Delete` から完全削除（確認ダイアログあり、元に戻せません）
 
 Homeの長押し操作では、iOS Safari/PWAの文字選択・コピーCalloutが発生しにくいよう選択抑止を入れています。
 
@@ -333,10 +336,10 @@ Plavは既存のSupabase Project / R2 Bucketを利用します。
 
 - Project: `yt-player`
 - Table: `public.tracks`
-- PlavからはWorker経由でRead
+- PlavからはWorker経由でRead / Update（タイトル）/ Delete（曲削除）
 - `owner_id = PLAV_OWNER_ID`
-- `status = ready`
-- DB構造はPlav側から変更しない
+- 一覧取得は`status = ready`のみ対象
+- DB構造（カラム等）はPlav側から変更しない。データの更新・削除はPlavの機能として許容する
 
 ### R2
 
@@ -344,6 +347,7 @@ Plavは既存のSupabase Project / R2 Bucketを利用します。
 - Binding: `AUDIO_BUCKET`
 - AudioはWorkerの `/api/media/:id` 経由
 - Range request対応
+- 曲の完全削除時はWorkerが対象Objectも削除する（`DELETE /api/tracks/:id`）
 - BrowserからR2 Object keyを直接指定しない
 
 ---
@@ -354,7 +358,9 @@ Plavは既存のSupabase Project / R2 Bucketを利用します。
 |---|---|
 | Header / Nav / Home layout | `src/App.tsx`, `src/styles/app.css` |
 | Homeの曲一覧 | `src/ui/Library.tsx`, `src/styles/app.css` |
+| Homeのソート | `src/App.tsx`, `src/media.ts`（`sortItems`）, `src/styles/app.css` |
 | 長押し / Play next | `src/ui/Library.tsx`, `src/hooks/useLongPress.ts`, `src/audio.ts` |
+| タイトル編集 / 曲の完全削除 | `src/ui/Library.tsx`（Detail Sheet）, `src/media.ts`, `src/App.tsx`, `worker/tracks.ts`, `worker/media.ts`, `worker/index.ts` |
 | Download表示 | `src/ui/Library.tsx`, `src/offline.ts`, `src/styles/app.css` |
 | Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
 | Player Sheet | `src/ui/PlayerSheet.tsx`, `src/hooks/useDraggableSheet.ts`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
@@ -415,6 +421,7 @@ git apply -R C:\path\to\plav_fix.patch
 - PWA CacheはOS / Safariの判断で削除される可能性がある
 - Audio Cacheは端末ごとに独立している
 - Video backendは現在未接続
+- Home Detail Sheetからの曲削除は**完全削除**（Supabaseレコード + R2ファイル）で元に戻せない
 
 ---
 

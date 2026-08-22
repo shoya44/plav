@@ -7,6 +7,7 @@ export type MediaItem = {
   url?: string
   durationSeconds?: number
   createdAt?: string
+  fileSizeBytes?: number
 }
 
 export type SortMode = "dateAddedDesc" | "dateAddedAsc" | "titleAsc"
@@ -17,6 +18,7 @@ type ApiTrack = {
   durationSeconds: number
   mediaUrl: string
   createdAt: string
+  fileSizeBytes: number
 }
 
 type TracksResponse = {
@@ -39,6 +41,7 @@ export async function fetchTracks(): Promise<MediaItem[]> {
     url: track.mediaUrl,
     durationSeconds: track.durationSeconds,
     createdAt: track.createdAt,
+    fileSizeBytes: track.fileSizeBytes,
   }))
 }
 

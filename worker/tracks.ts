@@ -79,6 +79,7 @@ export async function listTracks(env: Env) {
       durationSeconds: track.duration_seconds,
       mediaUrl: `/api/media/${track.id}`,
       createdAt: track.created_at,
+      fileSizeBytes: track.file_size_bytes,
     })),
   })
 }

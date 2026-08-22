@@ -394,7 +394,7 @@ Up Next
 History行・Up Next行のどちらも同じ長押しDragで並び替え・移動できます。
 
 ```text
-220 ms hold
+150 ms hold
    ↓
 浮いたDrag Preview表示
    ↓
@@ -723,13 +723,17 @@ Frontend向け主要Response:
       "title": "track title",
       "durationSeconds": 215,
       "mediaUrl": "/api/media/uuid",
-      "createdAt": "2026-01-01T00:00:00.000Z"
+      "createdAt": "2026-01-01T00:00:00.000Z",
+      "fileSizeBytes": 5242880
     }
   ]
 }
 ```
 
-`createdAt`はHomeのソート機能（追加日順）のためにFrontendへ返しています。
+`createdAt`はHomeのソート機能（追加日順）のために、`fileSizeBytes`はSettings > Downloads
+の「Saved」欄でダウンロード済み合計サイズを表示するために、それぞれFrontendへ返しています
+（`fileSizeBytes`はSupabaseの`file_size_bytes`カラムをそのまま転送しているだけで、
+Cache Storageの実ファイルを読みには行きません）。
 
 ## 10.3 `PATCH /api/tracks/:id`
 
@@ -983,7 +987,7 @@ iOSではJavaScriptからシステムMedia volumeを自由に変更できない�
 | Item | Behavior |
 |---|---|
 | Auto save | ON/OFFをlocalStorageへ保持 |
-| Saved | Downloaded / Total |
+| Saved | `Downloaded / Total · 合計サイズ`（例: `1 / 2 · 4 MB`）。サイズはSupabase由来の`fileSizeBytes`をダウンロード済みの曲だけ合算し、`formatStorage`で整形（Cache Storageの実ファイルは読まない） |
 
 ## Cloud
 
@@ -1005,7 +1009,7 @@ iOSではJavaScriptからシステムMedia volumeを自由に変更できない�
 |---|---|
 | Plav | `Personal media player` |
 | Released | `import.meta.env.VITE_BUILD_DATE` をフォーマットして表示（ビルド時点のタイムスタンプ = そのバージョンのリリース日時） |
-| Repository | GitHubリポジトリへの外部リンク（`target="_blank"`） |
+| Repository | GitHubリポジトリへの外部リンク（`target="_blank"`）。表示値は`REPOSITORY_URL`から導出した`owner/repo`（例: `shoya44/plav ↗`） |
 
 `VITE_BUILD_DATE` は `vite.config.ts` の `define` でビルド時に `new Date().toISOString()` として埋め込まれます（`src/vite-env.d.ts` で型宣言）。
 

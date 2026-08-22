@@ -26,7 +26,7 @@ type DragPreview = {
   height: number
 }
 
-const HOLD_TO_REORDER_MS = 220
+const HOLD_TO_REORDER_MS = 150
 const HOLD_CANCEL_DISTANCE = 10
 
 // Player SheetのHistory / Up Nextを「長押し + ドラッグ」で並び替え・

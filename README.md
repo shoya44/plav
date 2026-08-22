@@ -106,10 +106,10 @@ Up Nextの曲を再生中トラックより上（Historyエリア）までドラ
 
 ### Settings
 
-- `Downloads`: Auto save / 保存曲数
+- `Downloads`: Auto save / 保存曲数と合計サイズ
 - `Cloud`: R2現在容量
 - `App`: Version / Update app
-- `About`: Released（ビルド日時）/ Repository（GitHubリンク）
+- `About`: Released（ビルド日時）/ Repository（`owner/repo`表示のGitHubリンク）
 
 `Update app > Load latest` は最新の `index.html` をno-storeで取得し直します。ローカル保存したAudio Cacheは削除しません。
 

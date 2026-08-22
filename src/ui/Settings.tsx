@@ -34,6 +34,9 @@ function formatBuildDate(isoDate: string) {
 }
 
 const REPOSITORY_URL = "https://github.com/shoya44/plav"
+// URLから "owner/repo" 部分を取り出して表示する（URLを直書きし直しても
+// ここは自動的に追従する）。
+const REPOSITORY_NAME = new URL(REPOSITORY_URL).pathname.slice(1)
 
 export function Settings({ version, offline }: Props) {
   const [isUpdating, setIsUpdating] = useState(false)
@@ -145,7 +148,7 @@ export function Settings({ version, offline }: Props) {
 
             <span className="settings-row-value">
               {offline.isSupported
-                ? `${offline.downloadedCount} / ${offline.totalCount}`
+                ? `${offline.downloadedCount} / ${offline.totalCount} · ${formatStorage(offline.downloadedBytes)}`
                 : "Unavailable"}
             </span>
           </div>
@@ -296,7 +299,7 @@ export function Settings({ version, offline }: Props) {
             </span>
 
             <span className="settings-row-value">
-              GitHub ↗
+              {REPOSITORY_NAME} ↗
             </span>
           </a>
         </div>

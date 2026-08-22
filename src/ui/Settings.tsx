@@ -233,24 +233,6 @@ export function Settings({ version, offline }: Props) {
 
       <section className="settings-section">
         <h2 className="settings-section-title">
-          Home
-        </h2>
-
-        <div className="settings-group">
-          <div className="settings-row">
-            <span className="settings-row-label">
-              Default view
-            </span>
-
-            <span className="settings-row-value">
-              Audio
-            </span>
-          </div>
-        </div>
-      </section>
-
-      <section className="settings-section">
-        <h2 className="settings-section-title">
           App
         </h2>
 

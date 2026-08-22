@@ -496,6 +496,24 @@
 
   z-index: 30;
   transition: opacity 200ms ease;
+  animation: player-backdrop-enter 200ms ease;
+}
+
+/*
+  閉じる時はis-closingのtransformで滑らかにスライドダウンするが、
+  開く時（初回mount）はtransitionが発火しないため瞬時に表示されてしまう。
+  animationでmount時だけ同じ動きを与え、開閉の見た目を揃える。
+*/
+@keyframes player-backdrop-enter {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes player-sheet-enter {
+  from {
+    transform: translate3d(0, calc(100% + 36px), 0);
+  }
 }
 
 .player-sheet {
@@ -532,6 +550,7 @@
   transition:
     height 220ms cubic-bezier(0.22, 0.61, 0.36, 1),
     transform 200ms cubic-bezier(0.22, 0.61, 0.36, 1);
+  animation: player-sheet-enter 220ms cubic-bezier(0.22, 0.61, 0.36, 1);
 
   will-change: height, transform;
   z-index: 40;
@@ -631,6 +650,22 @@
 
   white-space: nowrap;
   text-overflow: ellipsis;
+
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/*
+  Player Sheet全体は長押し操作（Drag / Queue並び替え）の対象なので、
+  Homeの楽曲行と同様に文字選択・コピー吹き出しを常時無効化する。
+*/
+.player-sheet,
+.player-sheet * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
 }
 
 /* ---------- Playback History / Queue ---------- */
@@ -841,6 +876,11 @@
   .player-sheet-secondary-control,
   .player-sheet-progress::-webkit-slider-thumb {
     transition: none;
+  }
+
+  .player-sheet,
+  .player-backdrop {
+    animation: none;
   }
 }
 

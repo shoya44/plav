@@ -24,6 +24,17 @@ function getStorageTone(percent: number) {
   return ""
 }
 
+function formatBuildDate(isoDate: string) {
+  const date = new Date(isoDate)
+  if (Number.isNaN(date.getTime())) return "Unknown"
+
+  const pad = (value: number) => value.toString().padStart(2, "0")
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+const REPOSITORY_URL = "https://github.com/shoya44/plav"
+
 export function Settings({ version, offline }: Props) {
   const [isUpdating, setIsUpdating] = useState(false)
   const [updateError, setUpdateError] = useState("")
@@ -98,36 +109,6 @@ export function Settings({ version, offline }: Props) {
           Plav preferences and app information
         </p>
       </div>
-
-      <section className="settings-section">
-        <h2 className="settings-section-title">
-          Playback
-        </h2>
-
-        <div className="settings-group">
-          <div className="settings-row">
-            <span className="settings-row-label">
-              Continuous playback
-            </span>
-
-            <span className="settings-row-value">
-              Enabled
-            </span>
-          </div>
-
-          <div className="settings-divider" />
-
-          <div className="settings-row">
-            <span className="settings-row-label">
-              History
-            </span>
-
-            <span className="settings-row-value">
-              Session only
-            </span>
-          </div>
-        </div>
-      </section>
 
       <section className="settings-section">
         <h2 className="settings-section-title">
@@ -289,6 +270,35 @@ export function Settings({ version, offline }: Props) {
               Personal media player
             </span>
           </div>
+
+          <div className="settings-divider" />
+
+          <div className="settings-row">
+            <span className="settings-row-label">
+              Released
+            </span>
+
+            <span className="settings-row-value">
+              {formatBuildDate(import.meta.env.VITE_BUILD_DATE)}
+            </span>
+          </div>
+
+          <div className="settings-divider" />
+
+          <a
+            className="settings-link-row"
+            href={REPOSITORY_URL}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <span className="settings-row-label">
+              Repository
+            </span>
+
+            <span className="settings-row-value">
+              GitHub ↗
+            </span>
+          </a>
         </div>
       </section>
     </main>

@@ -74,7 +74,14 @@ export function PlayerSheet({ player, onClose }: Props) {
         <div className="player-sheet-queue">
           <div className="player-sheet-section-title">PLAYBACK</div>
           <div className="player-sheet-queue-scroll">
-            <PlaybackQueue player={player} />
+            <PlaybackQueue
+              history={player.history}
+              currentItem={player.currentItem}
+              upNext={player.upNext}
+              moveQueueItem={player.moveQueueItem}
+              playHistoryItem={player.playHistoryItem}
+              playUpNextItem={player.playUpNextItem}
+            />
           </div>
         </div>
 

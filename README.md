@@ -97,16 +97,15 @@ Collapsed Playerをタップして開きます。
 - Current track
 - Up Next
 
-Up Nextの並び替えは **長押しして行が浮いた後、そのまま上下へドラッグ** します。通常の短いタップでは並び替えません。
+Up Next / Historyの並び替えは **長押しして行が浮いた後、そのまま上下へドラッグ** します。通常の短いタップでは並び替えません。
+Up Nextの曲を再生中トラックより上（Historyエリア）までドラッグするとHistoryへ移動し、逆にHistoryの曲をUp Nextまでドラッグすると次に再生される側へ戻せます（`moveQueueItem` / `QueuePosition`、実装は「9. UIを変更するときの主な修正箇所」の「Queue / 並び替え」を参照）。
 
 ### Settings
 
-- `Playback`: 現在の再生方針を表示
 - `Downloads`: Auto save / 保存曲数
 - `Cloud`: R2現在容量
-- `Home`: Default view
 - `App`: Version / Update app
-- `About`: App information
+- `About`: Released（ビルド日時）/ Repository（GitHubリンク）
 
 `Update app > Load latest` は最新の `index.html` をno-storeで取得し直します。ローカル保存したAudio Cacheは削除しません。
 

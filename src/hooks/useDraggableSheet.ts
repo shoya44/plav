@@ -15,6 +15,10 @@ type Options = {
   onClose: () => void
 }
 
+// player.cssの.player-sheet.is-closing / .player-backdrop.is-closingの
+// transitionは200ms。unmountはそれ以降に行う（詳細はcloseWithAnimation参照）。
+const CLOSE_ANIMATION_MS = 210
+
 // Player Sheetのボトムシート化（上下ドラッグでの拡大/縮小/閉じる）を
 // 管理する。速度・距離のしきい値やDOMへの直接描画によるドラッグの
 // 軽量化など、ジェスチャー固有のロジックをここへ集約する。
@@ -104,7 +108,10 @@ export function useDraggableSheet({ contentKey, onClose }: Options) {
     const reduceMotion =
       window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false
 
-    window.setTimeout(onClose, reduceMotion ? 0 : 180)
+    // player.cssの.is-closingは transform/opacity を200msで遷移させる。
+    // ここが200ms未満だとアニメーションの完了前にSheetがunmountされ、
+    // クローズが唐突に見える（実際に20ms早くunmountされていたバグ）。
+    window.setTimeout(onClose, reduceMotion ? 0 : CLOSE_ANIMATION_MS)
   }
 
   const resetPointerTracking = () => {

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import type { MouseEvent, PointerEvent } from "react"
 
+import type { QueueList, QueuePosition } from "../audio"
+
 type PendingReorder = {
   pointerId: number
   itemId: string | number
@@ -9,6 +11,11 @@ type PendingReorder = {
   startY: number
   active: boolean
   row: HTMLDivElement
+  // 並び替え中でも位置が変わらない祖先要素（.queue-list）。
+  // 並び替え対象の行自体にpointer captureを持たせると、並び替えで
+  // その行がDOM上で移動した際にブラウザがcaptureを解放してしまう
+  // （lostpointercapture）ため、常に同じ場所にある祖先へcaptureする。
+  captureTarget: HTMLElement
 }
 
 type DragPreview = {
@@ -22,12 +29,13 @@ type DragPreview = {
 const HOLD_TO_REORDER_MS = 220
 const HOLD_CANCEL_DISTANCE = 10
 
-// Player SheetのUp Nextを「長押し + ドラッグ」で並び替えるための状態と
-// ポインターイベントハンドラをまとめる。並び替え自体はonReorderに委ねる。
+// Player SheetのHistory / Up Nextを「長押し + ドラッグ」で並び替え・
+// 移動するための状態とポインターイベントハンドラをまとめる。
+// 同一リスト内の並び替えだけでなく、History⇔Up Next間の移動もonMoveへ委ねる。
 export function useQueueReorder(
-  onReorder: (fromIndex: number, toIndex: number) => void,
+  onMove: (from: QueuePosition, to: QueuePosition) => void,
 ) {
-  const dragIndexRef = useRef<number | null>(null)
+  const dragPositionRef = useRef<QueuePosition | null>(null)
   const holdTimerRef = useRef<number | null>(null)
   const pendingReorderRef = useRef<PendingReorder | null>(null)
   const suppressClickItemIdRef = useRef<string | number | null>(null)
@@ -48,7 +56,7 @@ export function useQueueReorder(
   const resetReorderTracking = useCallback(() => {
     clearHoldTimer()
     pendingReorderRef.current = null
-    dragIndexRef.current = null
+    dragPositionRef.current = null
     setDraggingItemId(null)
     setDragPreview(null)
   }, [clearHoldTimer])
@@ -58,7 +66,8 @@ export function useQueueReorder(
   const startLongPressReorder = useCallback(
     (
       event: PointerEvent<HTMLDivElement>,
-      upNextIndex: number,
+      list: QueueList,
+      index: number,
       itemId: string | number,
       itemTitle: string,
     ) => {
@@ -69,7 +78,14 @@ export function useQueueReorder(
         return
       }
 
+      // Queue行で始まったポインター操作は、Player SheetのDrag(ドラッグで
+      // 拡大/縮小/閉じる)に横取りされないよう、ここで伝播を止める。
+      event.stopPropagation()
+
       const row = event.currentTarget
+      const captureTarget =
+        row.closest<HTMLElement>(".queue-list") ?? row
+
       const pending: PendingReorder = {
         pointerId: event.pointerId,
         itemId,
@@ -78,6 +94,7 @@ export function useQueueReorder(
         startY: event.clientY,
         active: false,
         row,
+        captureTarget,
       }
 
       pendingReorderRef.current = pending
@@ -94,7 +111,7 @@ export function useQueueReorder(
         }
 
         current.active = true
-        dragIndexRef.current = upNextIndex
+        dragPositionRef.current = { list, index }
         suppressClickItemIdRef.current = itemId
         setDraggingItemId(itemId)
 
@@ -108,7 +125,7 @@ export function useQueueReorder(
         })
 
         try {
-          current.row.setPointerCapture(current.pointerId)
+          current.captureTarget.setPointerCapture(current.pointerId)
         } catch {
           // iOSで既にPointerが解放されていた場合は何もしない。
         }
@@ -161,32 +178,34 @@ export function useQueueReorder(
         }
       }
 
-      const fromIndex = dragIndexRef.current
-      if (fromIndex === null) return
+      const from = dragPositionRef.current
+      if (!from) return
 
       const element = document.elementFromPoint(
         event.clientX,
         event.clientY,
       )
-      const row = element?.closest<HTMLElement>(
-        "[data-up-next-index]",
-      )
+      const row = element?.closest<HTMLElement>("[data-queue-list]")
 
       if (!row) return
 
-      const targetIndex = Number(row.dataset.upNextIndex)
+      const targetList = row.dataset.queueList as QueueList | undefined
+      const targetIndex = Number(row.dataset.queueIndex)
 
       if (
+        !targetList ||
         Number.isNaN(targetIndex) ||
-        targetIndex === fromIndex
+        (targetList === from.list && targetIndex === from.index)
       ) {
         return
       }
 
-      onReorder(fromIndex, targetIndex)
-      dragIndexRef.current = targetIndex
+      const to: QueuePosition = { list: targetList, index: targetIndex }
+
+      onMove(from, to)
+      dragPositionRef.current = to
     },
-    [resetReorderTracking, onReorder],
+    [resetReorderTracking, onMove],
   )
 
   const finishReorder = useCallback(
@@ -206,13 +225,13 @@ export function useQueueReorder(
 
       if (
         wasActive &&
-        pending.row.hasPointerCapture(event.pointerId)
+        pending.captureTarget.hasPointerCapture(event.pointerId)
       ) {
-        pending.row.releasePointerCapture(event.pointerId)
+        pending.captureTarget.releasePointerCapture(event.pointerId)
       }
 
       pendingReorderRef.current = null
-      dragIndexRef.current = null
+      dragPositionRef.current = null
       setDraggingItemId(null)
       setDragPreview(null)
 
@@ -240,6 +259,23 @@ export function useQueueReorder(
     [],
   )
 
+  // 長押し成立後の並び替えでは、ドラッグ中の要素がDOM上で移動する
+  // （並び順が変わる）ことがあり、その際ブラウザがpointer captureを
+  // 解放してlostpointercaptureが発生することがある。これは並び替えの
+  // 正常な副作用でありドラッグの中断ではないため、成立後は無視して
+  // pointerup/pointercancelでのみ終了させる。成立前（長押し確定前）に
+  // 何らかの理由でcaptureが失われた場合だけキャンセル扱いにする。
+  const handlePointerCaptureLost = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      const pending = pendingReorderRef.current
+      if (!pending || pending.pointerId !== event.pointerId) return
+      if (pending.active) return
+
+      finishReorder(event, true)
+    },
+    [finishReorder],
+  )
+
   return {
     draggingItemId,
     dragPreview,
@@ -247,6 +283,7 @@ export function useQueueReorder(
     startLongPressReorder,
     handleReorderMove,
     finishReorder,
+    handlePointerCaptureLost,
     handleRowClickCapture,
   }
 }

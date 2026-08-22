@@ -1,7 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { flushSync } from "react-dom"
 
 import { getDisplayTitle, type MediaItem } from "./media"
 import { getCachedMediaObjectUrl } from "./offline"
+
+export type QueueList = "history" | "upNext"
+
+export type QueuePosition = {
+  list: QueueList
+  index: number
+}
 
 function shuffleItems(items: MediaItem[]) {
   const shuffled = [...items]
@@ -359,27 +367,51 @@ export function useAudioPlayer(items: MediaItem[]) {
     ])
   }, [currentItem])
 
-  // Drag reorderはUp Next内だけで完結する。
-  const moveUpNextItem = useCallback((fromIndex: number, toIndex: number) => {
-    if (fromIndex === toIndex) return
+  // Drag reorderはUp Next内の並び替えに加え、History⇔Up Next間の
+  // 移動にも対応する。moveQueueItemはhistory/upNextを直接参照するため、
+  // 呼び出しのたびに必ず最新状態を読めるよう、setState群は毎回
+  // flushSyncで即座に確定させる（ドラッグ中に短時間で連続呼び出しされ、
+  // 複数回分がまとめてレンダリングされると、historyとupNextが別々の
+  // stateであることに起因して処理順序がずれ、内容が壊れることがあった）。
+  const moveQueueItem = useCallback((from: QueuePosition, to: QueuePosition) => {
+    if (from.list === to.list) {
+      if (from.index === to.index) return
 
-    setUpNext((currentUpNext) => {
-      if (
-        fromIndex < 0 ||
-        toIndex < 0 ||
-        fromIndex >= currentUpNext.length ||
-        toIndex >= currentUpNext.length
-      ) {
-        return currentUpNext
-      }
+      const setList = from.list === "history" ? setHistory : setUpNext
 
-      const nextUpNext = [...currentUpNext]
-      const [movedItem] = nextUpNext.splice(fromIndex, 1)
+      flushSync(() => {
+        setList((current) => {
+          if (from.index < 0 || from.index >= current.length) return current
 
-      nextUpNext.splice(toIndex, 0, movedItem)
-      return nextUpNext
+          const next = [...current]
+          const [movedItem] = next.splice(from.index, 1)
+          const insertAt = Math.min(Math.max(to.index, 0), next.length)
+
+          next.splice(insertAt, 0, movedItem)
+          return next
+        })
+      })
+      return
+    }
+
+    const sourceList = from.list === "history" ? history : upNext
+    const movedItem = sourceList[from.index]
+    if (!movedItem) return
+
+    const setSource = from.list === "history" ? setHistory : setUpNext
+    const setDestination = to.list === "history" ? setHistory : setUpNext
+
+    flushSync(() => {
+      setSource((current) => current.filter((_, index) => index !== from.index))
+
+      setDestination((current) => {
+        const insertAt = Math.min(Math.max(to.index, 0), current.length)
+        const next = [...current]
+        next.splice(insertAt, 0, movedItem)
+        return next
+      })
     })
-  }, [])
+  }, [history, upNext])
 
   const handleLoadedMetadata = useCallback((seconds: number) => {
     setDuration(seconds)
@@ -540,7 +572,7 @@ export function useAudioPlayer(items: MediaItem[]) {
       shuffleAll,
       shuffleUpcoming,
       queueItemNext,
-      moveUpNextItem,
+      moveQueueItem,
       toggleRepeat,
 
       handlePlay,
@@ -573,7 +605,7 @@ export function useAudioPlayer(items: MediaItem[]) {
       shuffleAll,
       shuffleUpcoming,
       queueItemNext,
-      moveUpNextItem,
+      moveQueueItem,
       toggleRepeat,
       handlePlay,
       handlePause,

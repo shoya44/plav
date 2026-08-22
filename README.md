@@ -420,3 +420,9 @@ git apply -R C:\path\to\plav_fix.patch
 実装担当者向けの詳細は以下に集約します。
 
 **[`docs/SPECIFICATION.md`](docs/SPECIFICATION.md)**
+
+開発中に発生した不具合とその原因・直し方、iPhone/PWA特有の制約と回避策、保守時の
+チェックリストは以下にまとめています。初学者向けに噛み砕いて書いているので、
+Player Sheet / Queue周りを触る前に一読をおすすめします。
+
+**[`docs/DEVELOPMENT_NOTES.md`](docs/DEVELOPMENT_NOTES.md)**

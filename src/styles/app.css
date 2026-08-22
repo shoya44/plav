@@ -57,6 +57,29 @@ body,
   overflow: hidden;
 }
 
+/*
+  Plavはコピー/選択を必要とするテキスト表示アプリではないため、
+  長押し文字選択・コールアウトはページ全体でデフォルト無効化する
+  （Home/Sheet個別のuser-select指定だけではPWA standalone時に
+  選択が発生することがあったための保険）。
+*/
+html,
+body {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/*
+  Plavはタッチ操作前提だが、外部キーボードやVoiceOver等でフォーカス移動
+  したときに、ブラウザ標準のフォーカスリング（青/オレンジ等バラバラな色）
+  が出るとアプリの配色から浮いてしまう。アクセントカラーへ統一する。
+*/
+:focus-visible {
+  outline: 2px solid var(--accent-bright);
+  outline-offset: 2px;
+}
+
 body {
   min-width: 320px;
 
@@ -742,6 +765,27 @@ html.plav-long-press-lock body * {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: 0.01em;
+}
+
+.settings-link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  width: 100%;
+  min-height: 50px;
+  gap: 20px;
+  padding: 0 14px;
+
+  color: inherit;
+  text-decoration: none;
+  touch-action: manipulation;
+
+  transition: background var(--transition-fast);
+}
+
+.settings-link-row:active {
+  background: rgba(82, 183, 255, 0.055);
 }
 
 .settings-update-error {

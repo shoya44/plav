@@ -52,6 +52,37 @@ export async function getCachedMediaObjectUrl(
   return URL.createObjectURL(blob)
 }
 
+// downloadedIds / downloadingIds / errorIds に共通する
+// 「1件だけadd/removeしてSetを作り直す」操作をまとめる。
+function useIdSet() {
+  const [ids, setIds] = useState<Set<string>>(() => new Set())
+
+  const add = useCallback((id: string) => {
+    setIds((current) => {
+      if (current.has(id)) return current
+      return new Set(current).add(id)
+    })
+  }, [])
+
+  const remove = useCallback((id: string) => {
+    setIds((current) => {
+      if (!current.has(id)) return current
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
+  }, [])
+
+  // actionsの参照を固定し、これに依存するuseCallbackが
+  // 不要に再生成されないようにする。
+  const actions = useMemo(
+    () => ({ add, remove, reset: setIds }),
+    [add, remove],
+  )
+
+  return [ids, actions] as const
+}
+
 export function useOfflineMedia(items: MediaItem[]) {
   const audioItems = useMemo(
     () =>
@@ -61,15 +92,9 @@ export function useOfflineMedia(items: MediaItem[]) {
     [items],
   )
 
-  const [downloadedIds, setDownloadedIds] = useState<Set<string>>(
-    () => new Set(),
-  )
-  const [downloadingIds, setDownloadingIds] = useState<Set<string>>(
-    () => new Set(),
-  )
-  const [errorIds, setErrorIds] = useState<Set<string>>(
-    () => new Set(),
-  )
+  const [downloadedIds, downloadedIdSet] = useIdSet()
+  const [downloadingIds, downloadingIdSet] = useIdSet()
+  const [errorIds, errorIdSet] = useIdSet()
   const [isReady, setIsReady] = useState(false)
   const [autoDownload, setAutoDownloadState] = useState(() => {
     try {
@@ -106,7 +131,7 @@ export function useOfflineMedia(items: MediaItem[]) {
 
         if (cancelled) return
 
-        setDownloadedIds(
+        downloadedIdSet.reset(
           new Set(
             checks
               .filter((item) => item.downloaded)
@@ -123,7 +148,7 @@ export function useOfflineMedia(items: MediaItem[]) {
     return () => {
       cancelled = true
     }
-  }, [audioItems, isSupported])
+  }, [audioItems, isSupported, downloadedIdSet])
 
   const downloadItem = useCallback(
     async (item: MediaItem) => {
@@ -137,16 +162,8 @@ export function useOfflineMedia(items: MediaItem[]) {
       }
 
       inFlightRef.current.add(item.id)
-      setDownloadingIds((current) => {
-        const next = new Set(current)
-        next.add(item.id)
-        return next
-      })
-      setErrorIds((current) => {
-        const next = new Set(current)
-        next.delete(item.id)
-        return next
-      })
+      downloadingIdSet.add(item.id)
+      errorIdSet.remove(item.id)
 
       try {
         await requestPersistentStorage()
@@ -165,31 +182,19 @@ export function useOfflineMedia(items: MediaItem[]) {
         const cache = await openMediaCache()
         await cache.put(cacheKey(item.id), response)
 
-        setDownloadedIds((current) => {
-          const next = new Set(current)
-          next.add(item.id)
-          return next
-        })
+        downloadedIdSet.add(item.id)
 
         return true
       } catch (error) {
         console.error("曲のローカル保存に失敗しました:", error)
-        setErrorIds((current) => {
-          const next = new Set(current)
-          next.add(item.id)
-          return next
-        })
+        errorIdSet.add(item.id)
         return false
       } finally {
         inFlightRef.current.delete(item.id)
-        setDownloadingIds((current) => {
-          const next = new Set(current)
-          next.delete(item.id)
-          return next
-        })
+        downloadingIdSet.remove(item.id)
       }
     },
-    [isSupported],
+    [isSupported, downloadingIdSet, errorIdSet, downloadedIdSet],
   )
 
   const removeItem = useCallback(
@@ -202,16 +207,8 @@ export function useOfflineMedia(items: MediaItem[]) {
         const cache = await openMediaCache()
         await cache.delete(cacheKey(itemId))
 
-        setDownloadedIds((current) => {
-          const next = new Set(current)
-          next.delete(itemId)
-          return next
-        })
-        setErrorIds((current) => {
-          const next = new Set(current)
-          next.delete(itemId)
-          return next
-        })
+        downloadedIdSet.remove(itemId)
+        errorIdSet.remove(itemId)
 
         return true
       } catch (error) {
@@ -219,7 +216,7 @@ export function useOfflineMedia(items: MediaItem[]) {
         return false
       }
     },
-    [isSupported],
+    [isSupported, downloadedIdSet, errorIdSet],
   )
 
   const toggleDownload = useCallback(
@@ -281,20 +278,40 @@ export function useOfflineMedia(items: MediaItem[]) {
     isSupported,
   ])
 
-  return {
-    isSupported,
-    isReady,
-    autoDownload,
-    downloadedIds,
-    downloadingIds,
-    errorIds,
-    downloadedCount: audioItems.filter((item) =>
-      downloadedIds.has(item.id),
-    ).length,
-    totalCount: audioItems.length,
-    toggleDownload,
-    setAutoDownload,
-  }
+  const downloadedCount = useMemo(
+    () =>
+      audioItems.filter((item) => downloadedIds.has(item.id)).length,
+    [audioItems, downloadedIds],
+  )
+
+  // 戻り値オブジェクトの参照を安定させ、これをpropsとして受け取る
+  // 画面側（Library等）が不要に再レンダリングされないようにする。
+  return useMemo(
+    () => ({
+      isSupported,
+      isReady,
+      autoDownload,
+      downloadedIds,
+      downloadingIds,
+      errorIds,
+      downloadedCount,
+      totalCount: audioItems.length,
+      toggleDownload,
+      setAutoDownload,
+    }),
+    [
+      isSupported,
+      isReady,
+      autoDownload,
+      downloadedIds,
+      downloadingIds,
+      errorIds,
+      downloadedCount,
+      audioItems.length,
+      toggleDownload,
+      setAutoDownload,
+    ],
+  )
 }
 
 export type OfflineMediaController = ReturnType<

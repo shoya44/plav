@@ -5,7 +5,7 @@ Plav は、iPhone / PWA を主対象とした個人用の軽量メディアプ�
 
 - Repository: `https://github.com/shoya44/plav`
 - Production: `https://plav.take503503.workers.dev/`
-- Current version: `v0.3.5`
+- Current version: `v0.4.0`
 - Frontend: React + TypeScript + Vite
 - Backend: Cloudflare Workers
 - Metadata: Supabase `tracks`
@@ -13,6 +13,7 @@ Plav は、iPhone / PWA を主対象とした個人用の軽量メディアプ�
 - Local save: Browser Cache Storage
 
 > 詳細な内部仕様・データフロー・UI修正箇所・テスト観点は [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) を参照してください。
+> 初めて保守に入る方は、まず [`docs/MAINTAINER_GUIDE.md`](docs/MAINTAINER_GUIDE.md)（要点だけの早見表）から読むのがおすすめです。
 
 ---
 
@@ -97,16 +98,15 @@ Collapsed Playerをタップして開きます。
 - Current track
 - Up Next
 
-Up Nextの並び替えは **長押しして行が浮いた後、そのまま上下へドラッグ** します。通常の短いタップでは並び替えません。
+Up Next / Historyの並び替えは **長押しして行が浮いた後、そのまま上下へドラッグ** します。通常の短いタップでは並び替えません。
+Up Nextの曲を再生中トラックより上（Historyエリア）までドラッグするとHistoryへ移動し、逆にHistoryの曲をUp Nextまでドラッグすると次に再生される側へ戻せます（`moveQueueItem` / `QueuePosition`、実装は「9. UIを変更するときの主な修正箇所」の「Queue / 並び替え」を参照）。
 
 ### Settings
 
-- `Playback`: 現在の再生方針を表示
 - `Downloads`: Auto save / 保存曲数
 - `Cloud`: R2現在容量
-- `Home`: Default view
 - `App`: Version / Update app
-- `About`: App information
+- `About`: Released（ビルド日時）/ Repository（GitHubリンク）
 
 `Update app > Load latest` は最新の `index.html` をno-storeで取得し直します。ローカル保存したAudio Cacheは削除しません。
 
@@ -165,6 +165,7 @@ plav/
 │  ├─ media.ts                # Media型 / tracks API / utility
 │  ├─ offline.ts              # Cache Storage / Auto save
 │  ├─ cloud.ts                # R2 usage API client
+│  ├─ cssVars.ts              # CSSカスタムプロパティ用の型ヘルパー
 │  ├─ main.tsx                # React entry point
 │  │
 │  ├─ ui/
@@ -172,8 +173,15 @@ plav/
 │  │  ├─ CollapsedPlayer.tsx  # Mini Player
 │  │  ├─ PlayerSheet.tsx      # Audio Player Sheet
 │  │  ├─ PlaybackQueue.tsx    # History / Current / Up Next / Drag reorder
+│  │  ├─ SeekBar.tsx          # Mini Player / Player Sheet共通のSeekバー
 │  │  ├─ Settings.tsx         # Settings
 │  │  └─ VideoPlayer.tsx      # Video UI
+│  │
+│  ├─ hooks/
+│  │  ├─ useLongPress.ts      # 長押し判定（Library.tsx）
+│  │  ├─ useSwipeToClose.ts   # 下スワイプで閉じる（VideoPlayer.tsx / Library.tsx）
+│  │  ├─ useQueueReorder.ts   # Up Nextの長押し+ドラッグ並び替え（PlaybackQueue.tsx）
+│  │  └─ useDraggableSheet.ts # Player Sheetのドラッグ/スナップ（PlayerSheet.tsx）
 │  │
 │  └─ styles/
 │     ├─ app.css              # App / Home / Library / Settings / Nav
@@ -186,7 +194,9 @@ plav/
 │  └─ storage.ts              # R2容量集計
 │
 ├─ docs/
-│  └─ SPECIFICATION.md        # 詳細仕様書
+│  ├─ MAINTAINER_GUIDE.md     # 保守担当者向け早見表（まずここから）
+│  ├─ SPECIFICATION.md        # 詳細仕様書
+│  └─ DEVELOPMENT_NOTES.md    # 開発中に発生した不具合・原因・教訓、iPhone/PWA制約
 │
 ├─ index.html
 ├─ package.json
@@ -203,6 +213,7 @@ plav/
 - App composition → `App.tsx`
 - State / domain logic → `audio.ts`, `video.ts`, `offline.ts`, `cloud.ts`
 - UI behavior → `src/ui/`
+- 複数のUIで共通するジェスチャー判定 → `src/hooks/`（`useLongPress` / `useSwipeToClose` 等）
 - CSS → `app.css`, `player.css` の2ファイル
 - Backend routing → `worker/index.ts`
 - Backend responsibilities → `tracks.ts`, `media.ts`, `storage.ts`
@@ -343,12 +354,12 @@ Plavは既存のSupabase Project / R2 Bucketを利用します。
 |---|---|
 | Header / Nav / Home layout | `src/App.tsx`, `src/styles/app.css` |
 | Homeの曲一覧 | `src/ui/Library.tsx`, `src/styles/app.css` |
-| 長押し / Play next | `src/ui/Library.tsx`, `src/audio.ts` |
+| 長押し / Play next | `src/ui/Library.tsx`, `src/hooks/useLongPress.ts`, `src/audio.ts` |
 | Download表示 | `src/ui/Library.tsx`, `src/offline.ts`, `src/styles/app.css` |
-| Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/styles/player.css` |
-| Player Sheet | `src/ui/PlayerSheet.tsx`, `src/styles/player.css` |
-| Queue / 並び替え | `src/ui/PlaybackQueue.tsx`, `src/audio.ts`, `src/styles/player.css` |
-| Seek / Next / Previous / Repeat / Shuffle | `src/audio.ts`, `src/ui/PlayerSheet.tsx` |
+| Mini Player | `src/ui/CollapsedPlayer.tsx`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
+| Player Sheet | `src/ui/PlayerSheet.tsx`, `src/hooks/useDraggableSheet.ts`, `src/ui/SeekBar.tsx`, `src/styles/player.css` |
+| Queue / 並び替え | `src/ui/PlaybackQueue.tsx`, `src/hooks/useQueueReorder.ts`, `src/audio.ts`, `src/styles/player.css` |
+| Seek / Next / Previous / Repeat / Shuffle | `src/audio.ts`, `src/ui/SeekBar.tsx`, `src/ui/PlayerSheet.tsx` |
 | Settings | `src/ui/Settings.tsx`, `src/styles/app.css` |
 | Local Cache | `src/offline.ts` |
 | R2容量表示 | `src/cloud.ts`, `src/ui/Settings.tsx`, `worker/storage.ts` |
@@ -409,6 +420,18 @@ git apply -R C:\path\to\plav_fix.patch
 
 ## 12. 詳細仕様
 
-実装担当者向けの詳細は以下に集約します。
+これから保守に入る方は、まず要点だけをまとめた早見表から読むのがおすすめです。
+
+**[`docs/MAINTAINER_GUIDE.md`](docs/MAINTAINER_GUIDE.md)**
+ツール概観、画面と主なファイルの対応、軽微なUI調整時の修正箇所、触るときの注意点。
+
+実装担当者向けのより詳細な情報は以下に集約します。
 
 **[`docs/SPECIFICATION.md`](docs/SPECIFICATION.md)**
+画面ごとの詳細な仕様・状態遷移・テスト観点。
+
+開発中に発生した不具合とその原因・直し方、iPhone/PWA特有の制約と回避策、保守時の
+チェックリストは以下にまとめています。初学者向けに噛み砕いて書いているので、
+Player Sheet / Queue周りを触る前に一読をおすすめします。
+
+**[`docs/DEVELOPMENT_NOTES.md`](docs/DEVELOPMENT_NOTES.md)**

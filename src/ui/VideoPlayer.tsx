@@ -1,5 +1,3 @@
-import { useRef } from "react"
-import type { CSSProperties } from "react"
 import {
   Maximize,
   Pause,
@@ -8,6 +6,8 @@ import {
   RotateCw,
 } from "lucide-react"
 
+import { cssVars } from "../cssVars"
+import { useSwipeToClose } from "../hooks/useSwipeToClose"
 import type { VideoPlayerController } from "../video"
 import {
   formatTime,
@@ -21,8 +21,7 @@ type Props = {
 export function VideoPlayer({
   player,
 }: Props) {
-  const touchStartYRef =
-    useRef<number | null>(null)
+  const swipeToClose = useSwipeToClose(player.close)
 
   const {
     currentItem,
@@ -55,27 +54,8 @@ export function VideoPlayer({
           isOpen ? " open" : ""
         }`}
         aria-hidden={!isOpen}
-        onTouchStart={(event) => {
-          touchStartYRef.current =
-            event.touches[0].clientY
-        }}
-        onTouchEnd={(event) => {
-          if (
-            touchStartYRef.current === null
-          ) {
-            return
-          }
-
-          const distance =
-            event.changedTouches[0].clientY -
-            touchStartYRef.current
-
-          if (distance > 40) {
-            player.close()
-          }
-
-          touchStartYRef.current = null
-        }}
+        onTouchStart={swipeToClose.onTouchStart}
+        onTouchEnd={swipeToClose.onTouchEnd}
       >
         <div className="video-player-top">
           <div className="sheet-handle video-player-handle" />
@@ -140,9 +120,7 @@ export function VideoPlayer({
               step="0.1"
               value={currentTime}
               aria-label="再生位置"
-              style={{
-                "--progress": progress,
-              } as CSSProperties}
+              style={cssVars({ "--progress": progress })}
               onChange={(event) =>
                 player.seekTo(
                   Number(

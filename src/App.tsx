@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useMemo, useState } from "react"
 import { House, Music2, Settings, Shuffle, Video } from "lucide-react"
 
 import { useAudioPlayer } from "./audio"
@@ -26,6 +26,10 @@ export default function App() {
   const audio = useAudioPlayer(mediaItems)
   const video = useVideoPlayer()
 
+  // useCallbackの依存配列に安定した個々の関数を渡すため、先に取り出しておく。
+  const { close: closeVideo, playItem: playVideoItem } = video
+  const { playItem: playAudioItem, pause: pauseAudio } = audio
+
   useEffect(() => {
     let cancelled = false
 
@@ -42,7 +46,10 @@ export default function App() {
     }
   }, [])
 
-  const filteredItems = mediaItems.filter((item) => item.type === mediaType)
+  const filteredItems = useMemo(
+    () => mediaItems.filter((item) => item.type === mediaType),
+    [mediaItems, mediaType],
+  )
   const showCollapsedPlayer = Boolean(audio.currentItem) && !video.currentItem
   const showShuffle =
     page === "home" &&
@@ -50,23 +57,29 @@ export default function App() {
     !isPlayerOpen &&
     !video.currentItem
 
-  const openPage = (nextPage: Page) => {
+  const openPage = useCallback((nextPage: Page) => {
     setIsPlayerOpen(false)
-    video.close()
+    closeVideo()
     setPage(nextPage)
-  }
+  }, [closeVideo])
 
-  const playMedia = async (item: MediaItem) => {
+  const playMedia = useCallback(async (item: MediaItem) => {
     if (item.type === "audio") {
-      video.close()
-      await audio.playItem(item)
+      closeVideo()
+      await playAudioItem(item)
       return
     }
 
-    audio.pause()
+    pauseAudio()
     setIsPlayerOpen(false)
-    await video.playItem(item)
-  }
+    await playVideoItem(item)
+  }, [closeVideo, playAudioItem, pauseAudio, playVideoItem])
+
+  // Libraryの各行へ同じ関数参照を渡し、曲一覧の不要な再レンダリングを防ぐ。
+  const handleLibraryPlay = useCallback(
+    (item: MediaItem) => void playMedia(item),
+    [playMedia],
+  )
 
   return (
     <div className={`app-shell${showCollapsedPlayer ? " has-player" : ""}`}>
@@ -118,8 +131,8 @@ export default function App() {
             currentAudioId={audio.currentItem?.id}
             currentVideoId={video.currentItem?.id}
             offline={offline}
-            onPlay={(item) => void playMedia(item)}
-            onPlayNext={(item) => audio.queueItemNext(item)}
+            onPlay={handleLibraryPlay}
+            onPlayNext={audio.queueItemNext}
           />
         </main>
       ) : (

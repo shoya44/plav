@@ -1,4 +1,4 @@
-import { useRef, useState } from "react"
+import { useCallback, useMemo, useRef, useState } from "react"
 
 import type { MediaItem } from "./media"
 
@@ -9,48 +9,25 @@ type WebkitVideoElement = HTMLVideoElement & {
 export function useVideoPlayer() {
   const videoRef = useRef<HTMLVideoElement>(null)
 
-  const [currentItem, setCurrentItem] =
-    useState<MediaItem | null>(null)
+  const [currentItem, setCurrentItem] = useState<MediaItem | null>(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
+  const [duration, setDuration] = useState(0)
 
-  const [isPlaying, setIsPlaying] =
-    useState(false)
-
-  const [currentTime, setCurrentTime] =
-    useState(0)
-
-  const [duration, setDuration] =
-    useState(0)
-
-  const playItem = async (
-    item: MediaItem
-  ) => {
-    if (
-      item.type !== "video" ||
-      !item.url
-    ) {
-      console.log(
-        "再生できる動画URLがありません:",
-        item.title
-      )
+  const playItem = useCallback(async (item: MediaItem) => {
+    if (item.type !== "video" || !item.url) {
+      console.log("再生できる動画URLがありません:", item.title)
       return
     }
 
-    const video =
-      videoRef.current
-
+    const video = videoRef.current
     if (!video) return
 
     setCurrentItem(item)
 
-    const nextUrl =
-      new URL(
-        item.url,
-        window.location.href
-      ).href
+    const nextUrl = new URL(item.url, window.location.href).href
 
-    if (
-      video.src !== nextUrl
-    ) {
+    if (video.src !== nextUrl) {
       video.src = item.url
       setCurrentTime(0)
       setDuration(0)
@@ -59,96 +36,57 @@ export function useVideoPlayer() {
     try {
       await video.play()
     } catch (error) {
-      console.error(
-        "動画の再生に失敗しました:",
-        error
-      )
+      console.error("動画の再生に失敗しました:", error)
     }
-  }
+  }, [])
 
-  const togglePlay = async () => {
-    const video =
-      videoRef.current
-
-    if (
-      !video ||
-      !currentItem
-    ) {
-      return
-    }
+  const togglePlay = useCallback(async () => {
+    const video = videoRef.current
+    if (!video || !currentItem) return
 
     if (video.paused) {
       try {
         await video.play()
       } catch (error) {
-        console.error(
-          "動画の再生に失敗しました:",
-          error
-        )
+        console.error("動画の再生に失敗しました:", error)
       }
-
       return
     }
 
     video.pause()
-  }
+  }, [currentItem])
 
-  const seekTo = (
-    time: number
-  ) => {
-    const video =
-      videoRef.current
-
+  const seekTo = useCallback((time: number) => {
+    const video = videoRef.current
     if (!video) return
 
     video.currentTime = time
     setCurrentTime(time)
-  }
+  }, [])
 
-  const skipBy = (
-    seconds: number
-  ) => {
-    const video =
-      videoRef.current
-
+  const skipBy = useCallback((seconds: number) => {
+    const video = videoRef.current
     if (!video) return
 
-    const maxTime =
-      Number.isFinite(
-        video.duration
-      )
-        ? video.duration
-        : Number.POSITIVE_INFINITY
+    const maxTime = Number.isFinite(video.duration)
+      ? video.duration
+      : Number.POSITIVE_INFINITY
 
-    const nextTime =
-      Math.min(
-        Math.max(
-          video.currentTime +
-            seconds,
-          0
-        ),
-        maxTime
-      )
-
-    video.currentTime =
-      nextTime
-
-    setCurrentTime(
-      nextTime
+    const nextTime = Math.min(
+      Math.max(video.currentTime + seconds, 0),
+      maxTime,
     )
-  }
 
-  const close = () => {
-    const video =
-      videoRef.current
+    video.currentTime = nextTime
+    setCurrentTime(nextTime)
+  }, [])
+
+  const close = useCallback(() => {
+    const video = videoRef.current
 
     if (video) {
       video.pause()
-
-      video.removeAttribute(
-        "src"
-      )
-
+      video.removeAttribute("src")
       video.load()
     }
 
@@ -156,77 +94,88 @@ export function useVideoPlayer() {
     setIsPlaying(false)
     setCurrentTime(0)
     setDuration(0)
-  }
+  }, [])
 
-  const enterFullscreen =
-    async () => {
-      const video =
-        videoRef.current
+  const enterFullscreen = useCallback(async () => {
+    const video = videoRef.current
+    if (!video) return
 
-      if (!video) return
-
-      if (
-        video.requestFullscreen
-      ) {
-        try {
-          await video
-            .requestFullscreen()
-
-          return
-        } catch {
-          // iPhone Safariでは
-          // webkitEnterFullscreenを試す。
-        }
+    if (video.requestFullscreen) {
+      try {
+        await video.requestFullscreen()
+        return
+      } catch {
+        // iPhone SafariではwebkitEnterFullscreenを試す。
       }
-
-      const webkitVideo =
-        video as WebkitVideoElement
-
-      webkitVideo
-        .webkitEnterFullscreen?.()
     }
 
-  const handleLoadedMetadata = (
-    seconds: number
-  ) => {
+    const webkitVideo = video as WebkitVideoElement
+    webkitVideo.webkitEnterFullscreen?.()
+  }, [])
+
+  const handleLoadedMetadata = useCallback((seconds: number) => {
     setDuration(seconds)
-  }
+  }, [])
 
-  return {
-    videoRef,
+  const handlePlay = useCallback(() => {
+    setIsPlaying(true)
+  }, [])
 
-    currentItem,
-    isPlaying,
-    currentTime,
-    duration,
+  const handlePause = useCallback(() => {
+    setIsPlaying(false)
+  }, [])
 
-    playItem,
-    togglePlay,
-    seekTo,
-    skipBy,
+  const handleTimeUpdate = useCallback((time: number) => {
+    setCurrentTime(time)
+  }, [])
 
-    close,
-    enterFullscreen,
+  const handleEnded = useCallback(() => {
+    setIsPlaying(false)
+  }, [])
 
-    handlePlay: () =>
-      setIsPlaying(true),
+  // 戻り値オブジェクトの参照を安定させ、再生位置以外を利用する
+  // 呼び出し側が不要に再レンダリングされないようにする。
+  return useMemo(
+    () => ({
+      videoRef,
 
-    handlePause: () =>
-      setIsPlaying(false),
+      currentItem,
+      isPlaying,
+      currentTime,
+      duration,
 
-    handleTimeUpdate: (
-      time: number
-    ) =>
-      setCurrentTime(time),
+      playItem,
+      togglePlay,
+      seekTo,
+      skipBy,
 
-    handleLoadedMetadata,
+      close,
+      enterFullscreen,
 
-    handleEnded: () =>
-      setIsPlaying(false),
-  }
+      handlePlay,
+      handlePause,
+      handleTimeUpdate,
+      handleLoadedMetadata,
+      handleEnded,
+    }),
+    [
+      currentItem,
+      isPlaying,
+      currentTime,
+      duration,
+      playItem,
+      togglePlay,
+      seekTo,
+      skipBy,
+      close,
+      enterFullscreen,
+      handlePlay,
+      handlePause,
+      handleTimeUpdate,
+      handleLoadedMetadata,
+      handleEnded,
+    ],
+  )
 }
 
-export type VideoPlayerController =
-  ReturnType<
-    typeof useVideoPlayer
-  >
+export type VideoPlayerController = ReturnType<typeof useVideoPlayer>

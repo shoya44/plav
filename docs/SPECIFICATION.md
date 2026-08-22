@@ -1,6 +1,6 @@
 # Plav 詳細仕様書
 
-**対象:** Plav v0.3.5
+**対象:** Plav v0.4.0
 **用途:** ユーザー操作、保守、UI調整、障害調査、機能追加時の共通理解
 **主対象端末:** iPhone / iOS PWA
 **実装:** React + TypeScript + Vite + Cloudflare Workers + Supabase + Cloudflare R2
@@ -111,6 +111,7 @@ src/
 ├─ cloud.ts
 ├─ main.tsx
 ├─ ui/
+├─ hooks/
 └─ styles/
 
 worker/
@@ -330,7 +331,11 @@ Up Next
 
 ### History
 
-タップするとその履歴位置まで巻き戻して再生します。
+短いタップ:
+
+```text
+その履歴位置まで巻き戻して再生
+```
 
 ### Current
 
@@ -344,7 +349,9 @@ Up Next
 その曲を今すぐ再生
 ```
 
-長押し + Drag:
+### History / Up Next 共通: 長押し + Drag
+
+History行・Up Next行のどちらも同じ長押しDragで並び替え・移動できます。
 
 ```text
 220 ms hold
@@ -353,15 +360,20 @@ Up Next
    ↓
 上下Drag
    ↓
-Up Next reorder
+同一リスト内reorder、または
+再生中トラックを跨いでHistory ⇔ Up Next間を移動
    ↓
 Pointer releaseで確定
 ```
 
+移動先の判定は各行の `data-queue-list` / `data-queue-index` を `document.elementFromPoint` で読み取り、`useQueueReorder.ts` の `onMove(from, to)` (`QueuePosition = { list, index }`) 経由で `audio.ts` の `moveQueueItem` を呼び出します。同一リスト内なら配列内move、リストを跨ぐ場合は移動元から削除して移動先へ挿入し、いずれも `flushSync` で同期commitします（History/Up Nextが別々の`useState`のため、非同期batchだと更新順がずれて壊れることがあるため）。
+
+Pointer captureは並び替え対象の行自体ではなく、常に位置が変わらない祖先 `.queue-list`（`captureTarget`）に対して行います。対象行はreorderでDOM上の位置が変わるため、行自体にcaptureすると`lostpointercapture`で意図せずDragが中断してしまうためです。
+
 並び替え中は:
 
 - 文字選択禁止
-- Sheet swipe抑止
+- Sheet swipe抑止（`pointerdown`時点で`stopPropagation`し、Player SheetのDrag-to-close/resizeへ横取りされないようにする）
 - PreviewはPortalでbody直下へ描画
 - Queue端でAuto scroll
 - Drag終了直後の誤Click抑止
@@ -371,10 +383,8 @@ Pointer releaseで確定
 Sections:
 
 ```text
-Playback
 Downloads
 Cloud
-Home
 App
 About
 ```
@@ -872,13 +882,6 @@ iOSではJavaScriptからシステムMedia volumeを自由に変更できない�
 
 # 15. Settings仕様
 
-## Playback
-
-| Item | Current |
-|---|---|
-| Continuous playback | Enabled |
-| History | Session only |
-
 ## Downloads
 
 | Item | Behavior |
@@ -895,14 +898,6 @@ iOSではJavaScriptからシステムMedia volumeを自由に変更できない�
 | Files | Object count |
 | Tap | force refresh |
 
-## Home
-
-Current default:
-
-```text
-Audio
-```
-
 ## App
 
 - Version
@@ -910,9 +905,13 @@ Audio
 
 ## About
 
-```text
-Plav / Personal media player
-```
+| Item | Behavior |
+|---|---|
+| Plav | `Personal media player` |
+| Released | `import.meta.env.VITE_BUILD_DATE` をフォーマットして表示（ビルド時点のタイムスタンプ = そのバージョンのリリース日時） |
+| Repository | GitHubリポジトリへの外部リンク（`target="_blank"`） |
+
+`VITE_BUILD_DATE` は `vite.config.ts` の `define` でビルド時に `new Date().toISOString()` として埋め込まれます（`src/vite-env.d.ts` で型宣言）。
 
 ---
 
@@ -999,6 +998,7 @@ src/styles/app.css
 
 ```text
 src/ui/Library.tsx
+src/hooks/useLongPress.ts
 LONG_PRESS_MS
 MOVE_CANCEL_PX
 ```
@@ -1023,6 +1023,7 @@ src/styles/player.css
 
 ```text
 src/ui/PlayerSheet.tsx
+src/hooks/useDraggableSheet.ts
 src/styles/player.css
 ```
 
@@ -1030,6 +1031,7 @@ src/styles/player.css
 
 ```text
 src/ui/PlaybackQueue.tsx
+src/hooks/useQueueReorder.ts
 src/audio.ts
 src/styles/player.css
 
@@ -1041,6 +1043,7 @@ HOLD_CANCEL_DISTANCE
 
 ```text
 src/audio.ts
+src/ui/SeekBar.tsx
 src/ui/PlayerSheet.tsx
 src/ui/CollapsedPlayer.tsx
 src/styles/player.css
@@ -1179,8 +1182,9 @@ Patchを適用できない場合、無理にファイルを上書きせず、現
 
 ## 20.3 Player Sheet
 
-- Open / Close
+- Open / Closeがそれぞれアニメーション付きでシームレスに遷移する（`player-sheet-enter` / `is-closing`、Mini Player ⇔ Sheet切り替えを含む）
 - Half / Expanded
+- Long press時に文字選択しない
 - Queue scroll
 - Seek
 - Previous
@@ -1194,9 +1198,13 @@ Patchを適用できない場合、無理にファイルを上書きせず、現
 - Current表示
 - Up Next表示
 - Up Next tapで即再生
+- History tapでその位置まで巻き戻して再生
 - 短いtapではreorderしない
 - 長押しでPreviewが浮く
-- Dragで並び替わる
+- Dragで同一リスト内が並び替わる
+- Up Next → History（再生中トラックより上）へDragで移動できる
+- History → Up NextへDragで移動できる
+- 複数hop（1回のDragで複数行を跨ぐ移動）でも並び替えが継続する
 - Drag中に文字選択しない
 - Drag終了直後に誤再生しない
 

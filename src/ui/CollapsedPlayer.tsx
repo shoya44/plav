@@ -1,9 +1,10 @@
 import { useRef } from "react"
-import type { CSSProperties, PointerEvent as ReactPointerEvent } from "react"
+import type { PointerEvent as ReactPointerEvent } from "react"
 import { Pause, Play, SkipForward } from "lucide-react"
 
 import type { AudioPlayerController } from "../audio"
 import { getDisplayTitle } from "../media"
+import { SeekBar } from "./SeekBar"
 
 type Props = {
   player: AudioPlayerController
@@ -27,9 +28,6 @@ export function CollapsedPlayer({ player, onOpen }: Props) {
   } = player
 
   if (!currentItem) return null
-
-  const progress =
-    duration > 0 ? (displayTime / duration) * 100 : 0
 
   const handlePointerDown = (
     event: ReactPointerEvent<HTMLDivElement>,
@@ -71,10 +69,6 @@ export function CollapsedPlayer({ player, onOpen }: Props) {
 
   const clearSwipe = () => {
     swipeStartRef.current = null
-  }
-
-  const commitSeek = (value: string) => {
-    player.commitSeek(Number(value))
   }
 
   return (
@@ -120,33 +114,12 @@ export function CollapsedPlayer({ player, onOpen }: Props) {
         </button>
       </div>
 
-      <input
+      <SeekBar
         className="collapsed-player-progress"
-        type="range"
-        min="0"
-        max={duration || 0}
-        step="0.1"
         value={displayTime}
-        aria-label="再生位置"
-        style={{ "--progress": progress } as CSSProperties}
-        onInput={(event) =>
-          player.previewSeek(Number(event.currentTarget.value))
-        }
-        onPointerUp={(event) =>
-          commitSeek(event.currentTarget.value)
-        }
-        onPointerCancel={(event) =>
-          commitSeek(event.currentTarget.value)
-        }
-        onTouchEnd={(event) =>
-          commitSeek(event.currentTarget.value)
-        }
-        onKeyUp={(event) =>
-          commitSeek(event.currentTarget.value)
-        }
-        onBlur={(event) =>
-          commitSeek(event.currentTarget.value)
-        }
+        max={duration || 0}
+        onPreview={player.previewSeek}
+        onCommit={player.commitSeek}
       />
     </div>
   )

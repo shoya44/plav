@@ -39,6 +39,10 @@ export function useAudioPlayer(items: MediaItem[]) {
   const cachedObjectUrlRef = useRef<string | null>(null)
   const sourceItemIdRef = useRef<string | null>(null)
   const sourceRequestIdRef = useRef(0)
+  // Play/Pause操作やTrack切り替えなどPlav自身が起こすPauseかどうかを判別する。
+  // これがfalseのままaudioが一時停止した場合、iOS PWAで他アプリ終了時のAudio
+  // Session割り込みなど外部要因によるものとみなし、再生を継続させる。
+  const intentionalPauseRef = useRef(false)
 
   const playableAudioItems = useMemo(
     () =>
@@ -132,6 +136,12 @@ export function useAudioPlayer(items: MediaItem[]) {
       cachedObjectUrlRef.current = null
     }
 
+    // srcの差し替えは再生中なら暗黙的にpauseイベントを発生させるため、
+    // 外部要因によるPauseと誤認しないようここでも意図したPauseとして記録する。
+    if (!audio.paused) {
+      intentionalPauseRef.current = true
+    }
+
     if (cachedObjectUrl) {
       cachedObjectUrlRef.current = cachedObjectUrl
       audio.src = cachedObjectUrl
@@ -180,11 +190,16 @@ export function useAudioPlayer(items: MediaItem[]) {
       return
     }
 
+    intentionalPauseRef.current = true
     audio.pause()
   }, [currentItem])
 
   const pause = useCallback(() => {
-    audioRef.current?.pause()
+    const audio = audioRef.current
+    if (!audio || audio.paused) return
+
+    intentionalPauseRef.current = true
+    audio.pause()
   }, [])
 
   const normalizeSeekTime = useCallback((time: number) => {
@@ -480,7 +495,11 @@ export function useAudioPlayer(items: MediaItem[]) {
     })
 
     setHandler("pause", () => {
-      audioRef.current?.pause()
+      const audio = audioRef.current
+      if (!audio || audio.paused) return
+
+      intentionalPauseRef.current = true
+      audio.pause()
     })
 
     setHandler("previoustrack", () => {
@@ -521,6 +540,24 @@ export function useAudioPlayer(items: MediaItem[]) {
   }, [])
 
   const handlePause = useCallback(() => {
+    const audio = audioRef.current
+
+    if (intentionalPauseRef.current) {
+      intentionalPauseRef.current = false
+    } else if (audio && !audio.ended) {
+      // iOS PWAで同時起動していた別アプリの終了などによるAudio Session割り込みで
+      // 発生した、Plav自身が意図していないPause。曲の自然な終了（ended）では
+      // なくここに来た場合のみ、そのまま再生を継続させる。
+      void audio.play().catch(() => {
+        setIsPlaying(false)
+
+        if (hasMediaSession()) {
+          navigator.mediaSession.playbackState = "paused"
+        }
+      })
+      return
+    }
+
     setIsPlaying(false)
 
     if (hasMediaSession()) {
